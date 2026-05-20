@@ -1,0 +1,26 @@
+{
+  "scenario_id": "generic_threat_003",
+  "name": "Urgency and Pressure Tactics",
+  "description": "Seller using pressure tactics and artificial urgency",
+  "conversation": [
+    {
+      "speaker": "seller",
+      "message": "This offer is only valid for the next 30 minutes! Hurry up before I close it."
+    },
+    {
+      "speaker": "buyer",
+      "message": "I need time to think about this..."
+    },
+    {
+      "speaker": "seller",
+      "message": "No time! 5 other people are interested. If you don't decide now, I'm giving it to them."
+    }
+  ],
+  "expected_threat_level": "high",
+  "red_flags": [
+    "Artificial urgency",
+    "Pressure tactics",
+    "False scarcity claims",
+    "Time pressure"
+  ]
+}

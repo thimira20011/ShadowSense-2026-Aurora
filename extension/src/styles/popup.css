@@ -1,0 +1,222 @@
+/* Global styles for ShadowSense Aurora extension */
+
+:root {
+  --color-critical: #F44336;
+  --color-high: #FF9800;
+  --color-medium: #FFC107;
+  --color-low: #4CAF50;
+  --color-bg: #ffffff;
+  --color-text: #333333;
+  --color-border: #e0e0e0;
+}
+
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+body {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+  color: var(--color-text);
+  background: var(--color-bg);
+}
+
+.popup-container {
+  width: 500px;
+  padding: 0;
+  background: var(--color-bg);
+}
+
+.popup-header {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: white;
+  padding: 16px;
+  text-align: center;
+}
+
+.popup-header h1 {
+  font-size: 20px;
+  margin-bottom: 4px;
+}
+
+.popup-header p {
+  font-size: 12px;
+  opacity: 0.9;
+}
+
+.popup-content {
+  padding: 16px;
+}
+
+.popup-textarea {
+  width: 100%;
+  height: 120px;
+  padding: 8px;
+  border: 1px solid var(--color-border);
+  border-radius: 4px;
+  font-family: inherit;
+  font-size: 14px;
+  resize: vertical;
+}
+
+.analyze-btn {
+  width: 100%;
+  padding: 10px;
+  margin-top: 12px;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: white;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 14px;
+  font-weight: 600;
+  transition: opacity 0.2s;
+}
+
+.analyze-btn:hover:not(:disabled) {
+  opacity: 0.9;
+}
+
+.analyze-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.result-container {
+  margin-top: 16px;
+  padding: 12px;
+  background: #f5f5f5;
+  border-radius: 4px;
+}
+
+.trust-gauge {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
+}
+
+.gauge-text {
+  text-align: center;
+}
+
+.threat-level {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--color-text);
+}
+
+.confidence {
+  font-size: 20px;
+  font-weight: bold;
+  color: var(--color-text);
+}
+
+.alert-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  background: white;
+  border-left: 4px solid;
+  padding: 12px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+  z-index: 10000;
+}
+
+.alert-overlay.alert-critical {
+  border-left-color: var(--color-critical);
+}
+
+.alert-overlay.alert-high {
+  border-left-color: var(--color-high);
+}
+
+.alert-overlay.alert-medium {
+  border-left-color: var(--color-medium);
+}
+
+.alert-overlay.alert-low {
+  border-left-color: var(--color-low);
+}
+
+.alert-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.alert-icon {
+  font-size: 18px;
+}
+
+.alert-header h3 {
+  margin: 0;
+  font-size: 14px;
+  flex: 1;
+}
+
+.close-btn {
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-size: 16px;
+  padding: 0;
+  color: #999;
+}
+
+.alert-details p {
+  font-size: 12px;
+  margin: 4px 0;
+  color: #666;
+}
+
+.defense-narrative {
+  margin-top: 12px;
+}
+
+.narrative-section h4,
+.indicators-section h4 {
+  font-size: 12px;
+  font-weight: 600;
+  margin-bottom: 6px;
+  color: var(--color-text);
+}
+
+.narrative-section p {
+  font-size: 12px;
+  line-height: 1.4;
+  color: #666;
+}
+
+.indicators-list {
+  list-style: none;
+  padding: 0;
+}
+
+.indicators-list li {
+  padding: 6px;
+  margin: 4px 0;
+  background: white;
+  border-left: 2px solid #ddd;
+  font-size: 11px;
+  border-radius: 2px;
+}
+
+.indicator-type {
+  font-weight: 600;
+  color: #667eea;
+  margin-right: 4px;
+}
+
+.indicator-description {
+  color: #666;
+}
+
+.indicator-confidence {
+  float: right;
+  color: #999;
+  font-size: 10px;
+}
