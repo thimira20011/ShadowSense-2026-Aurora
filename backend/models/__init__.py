@@ -1,6 +1,8 @@
 """Pydantic models for API schemas."""
 from pydantic import BaseModel
 from typing import Optional, List
+from .analysis import ChatMessage, TrustScore, DefenseNarrative
+
 
 
 class ScamIndicator(BaseModel):
