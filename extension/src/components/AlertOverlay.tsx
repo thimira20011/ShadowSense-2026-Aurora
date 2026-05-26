@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React from "react";
 
 interface AlertOverlayProps {
   threatLevel: "low" | "medium" | "high" | "critical";
