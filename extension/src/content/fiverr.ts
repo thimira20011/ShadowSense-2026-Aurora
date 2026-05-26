@@ -480,13 +480,28 @@ class FiverrChatObserver {
     }
 
     // ── Timestamp ─────────────────────────────────────────────────────────
+    const timeEl = queryFirst(row, TIMESTAMP_SELECTORS);
     const timestamp = extractTimestamp(row);
+    const timestampKey =
+      timeEl?.getAttribute("datetime") ||
+      timeEl?.getAttribute("title") ||
+      timeEl?.getAttribute("aria-label") ||
+      timeEl?.textContent?.trim() ||
+      "";
 
     // ── Sender role ───────────────────────────────────────────────────────
     const senderRole = detectSenderRole(row);
 
     // ── Build message object ──────────────────────────────────────────────
-    const id = fingerprint(sender, text, timestamp);
+    const domMessageId =
+      row.getAttribute("data-message-id") ||
+      row.getAttribute("data-messageid") ||
+      row.getAttribute("data-testid") ||
+      row.getAttribute("id");
+
+    const id = domMessageId
+      ? `fiverr:${conversationId}:${domMessageId}`
+      : fingerprint(sender, text, timestampKey);
 
     const msg: ChatMessage = {
       id,

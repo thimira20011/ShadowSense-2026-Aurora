@@ -15,7 +15,7 @@
     "http://localhost:8000/*"
   ],
   "background": {
-    "service_worker": "background.ts"
+    "service_worker": "background.js"
   },
   "action": {
     "default_popup": "popup.html",
@@ -24,7 +24,7 @@
   "content_scripts": [
     {
       "matches": ["https://www.fiverr.com/*"],
-      "js": ["content/fiverr.ts"]
+      "js": ["content/fiverr.js"]
     }
   ],
   "icons": {
