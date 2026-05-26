@@ -306,7 +306,7 @@ class FiverrChatObserver {
 
   private observer: MutationObserver | null = null;
   private debounceTimer: ReturnType<typeof setTimeout> | null = null;
-  private retryTimer: ReturnType<typeof setTimeout> | null = null;
+  private attachRetryTimer: ReturnType<typeof setTimeout> | null = null;
   private chatContainer: Element | null = null;
   private stopped = false;
   private isScanning = false;
@@ -345,6 +345,10 @@ class FiverrChatObserver {
     const container = queryFirst(document, CHAT_CONTAINER_SELECTORS);
 
     if (container) {
+      if (this.attachRetryTimer !== null) {
+        clearTimeout(this.attachRetryTimer);
+        this.attachRetryTimer = null;
+      }
       this.chatContainer = container;
       this.observer = new MutationObserver(() => this.scheduleExtraction());
       this.observer.observe(container, {
@@ -360,8 +364,8 @@ class FiverrChatObserver {
       );
     } else if (attempts < 30) {
       // Retry – the SPA may not have rendered the inbox yet
-      if (this.retryTimer !== null) clearTimeout(this.retryTimer);
-      this.retryTimer = setTimeout(() => this.attach(attempts + 1), 1000);
+      if (this.attachRetryTimer !== null) clearTimeout(this.attachRetryTimer);
+      this.attachRetryTimer = setTimeout(() => this.attach(attempts + 1), 1000);
     } else {
       console.warn(
         "[ShadowSense] Could not find a chat container after 30 s. " +
@@ -375,7 +379,9 @@ class FiverrChatObserver {
     this.observer?.disconnect();
     this.observer = null;
     if (this.debounceTimer !== null) clearTimeout(this.debounceTimer);
-    if (this.retryTimer !== null) clearTimeout(this.retryTimer);
+    this.debounceTimer = null;
+    if (this.attachRetryTimer !== null) clearTimeout(this.attachRetryTimer);
+    this.attachRetryTimer = null;
   }
 
   // ── Extraction ───────────────────────────────────────────────────────────
@@ -383,6 +389,7 @@ class FiverrChatObserver {
   private scheduleExtraction(): void {
     if (this.debounceTimer !== null) clearTimeout(this.debounceTimer);
     this.debounceTimer = setTimeout(() => {
+      this.debounceTimer = null;
       void this.scanAll().catch((err) =>
         console.error("[ShadowSense] Scan error:", err)
       );
