@@ -176,7 +176,7 @@ function fingerprint(sender: string, text: string, timestamp: string): string {
 /** Extract a human-readable timestamp string from a DOM element */
 function extractTimestamp(row: Element): string {
   const timeEl = queryFirst(row, TIMESTAMP_SELECTORS);
-  if (!timeEl) return new Date().toISOString();
+  if (!timeEl) return "";
 
   // Prefer the machine-readable datetime attribute
   const dt =
@@ -194,7 +194,8 @@ function extractTimestamp(row: Element): string {
   const parsed = Date.parse(visible);
   if (!isNaN(parsed)) return new Date(parsed).toISOString();
 
-  return new Date().toISOString();
+  // Return the raw visible text or empty string rather than "now"
+  return visible || "";
 }
 
 /**
@@ -203,7 +204,7 @@ function extractTimestamp(row: Element): string {
  * or aria attributes.  We check several signals.
  */
 function detectSenderRole(row: Element): "self" | "other" {
-  const html = row.outerHTML;
+  const styleAttr = row.getAttribute("style") ?? "";
 
   const selfSignals = [
     row.getAttribute("data-self"),
@@ -232,7 +233,8 @@ function detectSenderRole(row: Element): "self" | "other" {
   if (
     style.justifyContent === "flex-end" ||
     style.alignSelf === "flex-end" ||
-    html.includes("flex-end")
+    row.className.includes("flex-end") ||
+    styleAttr.includes("flex-end")
   ) {
     return "self";
   }
@@ -269,12 +271,15 @@ async function saveMessages(
     chrome.storage.local.get([STORAGE_KEY], (result: any) => {
       const payload: StoragePayload = result[STORAGE_KEY] ?? {};
 
-      // Append new messages and enforce cap
+      // Append new messages, deduplicate by id, and enforce cap
       const merged = [...(payload[conversationId] ?? []), ...messages];
+      const deduped = Array.from(
+        new Map(merged.map((m) => [m.id, m])).values()
+      );
       const capped =
-        merged.length > MAX_MESSAGES_PER_CONVO
-          ? merged.slice(merged.length - MAX_MESSAGES_PER_CONVO)
-          : merged;
+        deduped.length > MAX_MESSAGES_PER_CONVO
+          ? deduped.slice(deduped.length - MAX_MESSAGES_PER_CONVO)
+          : deduped;
 
       payload[conversationId] = capped;
 
@@ -301,11 +306,16 @@ class FiverrChatObserver {
 
   private observer: MutationObserver | null = null;
   private debounceTimer: ReturnType<typeof setTimeout> | null = null;
+  private retryTimer: ReturnType<typeof setTimeout> | null = null;
   private chatContainer: Element | null = null;
+  private stopped = false;
+  private isScanning = false;
+  private scanQueued = false;
 
   // ── Lifecycle ────────────────────────────────────────────────────────────
 
   async init(): Promise<void> {
+    this.stopped = false;
     const conversationId = getConversationId();
 
     // Pre-load fingerprints of already-stored messages for this conversation
@@ -330,6 +340,8 @@ class FiverrChatObserver {
    * Retries every second for up to 30 s to handle SPA lazy-loading.
    */
   private attach(attempts = 0): void {
+    if (this.stopped) return;
+
     const container = queryFirst(document, CHAT_CONTAINER_SELECTORS);
 
     if (container) {
@@ -348,7 +360,8 @@ class FiverrChatObserver {
       );
     } else if (attempts < 30) {
       // Retry – the SPA may not have rendered the inbox yet
-      setTimeout(() => this.attach(attempts + 1), 1000);
+      if (this.retryTimer !== null) clearTimeout(this.retryTimer);
+      this.retryTimer = setTimeout(() => this.attach(attempts + 1), 1000);
     } else {
       console.warn(
         "[ShadowSense] Could not find a chat container after 30 s. " +
@@ -358,48 +371,68 @@ class FiverrChatObserver {
   }
 
   stop(): void {
+    this.stopped = true;
     this.observer?.disconnect();
     this.observer = null;
     if (this.debounceTimer !== null) clearTimeout(this.debounceTimer);
+    if (this.retryTimer !== null) clearTimeout(this.retryTimer);
   }
 
   // ── Extraction ───────────────────────────────────────────────────────────
 
   private scheduleExtraction(): void {
     if (this.debounceTimer !== null) clearTimeout(this.debounceTimer);
-    this.debounceTimer = setTimeout(() => this.scanAll(), DEBOUNCE_MS);
+    this.debounceTimer = setTimeout(() => {
+      void this.scanAll().catch((err) =>
+        console.error("[ShadowSense] Scan error:", err)
+      );
+    }, DEBOUNCE_MS);
   }
 
   private async scanAll(): Promise<void> {
-    const root = this.chatContainer ?? document;
-    const rows = queryAll<Element>(root, MESSAGE_ROW_SELECTORS);
-
-    if (rows.length === 0) {
-      // Nothing recognisable yet – could be a non-chat page
+    if (this.isScanning) {
+      this.scanQueued = true;
       return;
     }
+    this.isScanning = true;
 
-    const conversationId = getConversationId();
-    const newMessages: ChatMessage[] = [];
+    try {
+      const root = this.chatContainer ?? document;
+      const rows = queryAll<Element>(root, MESSAGE_ROW_SELECTORS);
 
-    for (const row of rows) {
-      const msg = this.extractMessage(row, conversationId);
-      if (!msg) continue;
+      if (rows.length === 0) {
+        // Nothing recognisable yet – could be a non-chat page
+        return;
+      }
 
-      if (this.seen.has(msg.id)) continue; // already captured
-      this.seen.add(msg.id);
-      newMessages.push(msg);
+      const conversationId = getConversationId();
+      const newMessages: ChatMessage[] = [];
+
+      for (const row of rows) {
+        const msg = this.extractMessage(row, conversationId);
+        if (!msg) continue;
+
+        if (this.seen.has(msg.id)) continue; // already captured
+        this.seen.add(msg.id);
+        newMessages.push(msg);
+      }
+
+      if (newMessages.length === 0) return;
+
+      console.log(
+        `[ShadowSense] Captured ${newMessages.length} new message(s) ` +
+          `in conversation "${conversationId}"`
+      );
+
+      await saveMessages(conversationId, newMessages);
+      this.notifyBackground(newMessages);
+    } finally {
+      this.isScanning = false;
+      if (this.scanQueued) {
+        this.scanQueued = false;
+        this.scheduleExtraction();
+      }
     }
-
-    if (newMessages.length === 0) return;
-
-    console.log(
-      `[ShadowSense] Captured ${newMessages.length} new message(s) ` +
-        `in conversation "${conversationId}"`
-    );
-
-    await saveMessages(conversationId, newMessages);
-    this.notifyBackground(newMessages);
   }
 
   /**
@@ -448,7 +481,11 @@ class FiverrChatObserver {
     const senderRole = detectSenderRole(row);
 
     // ── Build message object ──────────────────────────────────────────────
-    const id = fingerprint(sender, text, timestamp);
+    // Prefer stable DOM message id attributes, otherwise fall back to stable fingerprint
+    const domMessageId =
+      row.getAttribute("data-message-id") ||
+      row.getAttribute("id");
+    const id = domMessageId || fingerprint(sender, text, timestamp);
 
     const msg: ChatMessage = {
       id,
@@ -517,25 +554,35 @@ async function handleNavigation(): Promise<void> {
 
   history.pushState = (...args) => {
     originalPush(...args);
-    handleNavigation();
+    void handleNavigation().catch((err) =>
+      console.error("[ShadowSense] PushState navigation error:", err)
+    );
   };
 
   history.replaceState = (...args) => {
     originalReplace(...args);
-    handleNavigation();
+    void handleNavigation().catch((err) =>
+      console.error("[ShadowSense] ReplaceState navigation error:", err)
+    );
   };
 })();
 
-window.addEventListener("popstate", () => handleNavigation());
+window.addEventListener("popstate", () => {
+  void handleNavigation().catch((err) =>
+    console.error("[ShadowSense] Popstate navigation error:", err)
+  );
+});
 
 // ─── Entry point ─────────────────────────────────────────────────────────────
 
-(async function main(): Promise<void> {
+(function main(): void {
   console.log("[ShadowSense] Fiverr content script loaded.");
 
   if (isInboxPage()) {
     currentObserver = new FiverrChatObserver();
-    await currentObserver.init();
+    void currentObserver.init().catch((err) =>
+      console.error("[ShadowSense] Initialization error:", err)
+    );
   } else {
     console.log(
       "[ShadowSense] Not on an inbox page – observer will activate on navigation."
