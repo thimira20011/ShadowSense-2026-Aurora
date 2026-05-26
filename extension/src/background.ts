@@ -3,7 +3,7 @@
  * Handles extension lifecycle and messaging
  */
 
-declare const chrome: any;
+// chrome is declared globally by @types/chrome
 
 // Initialize extension on install
 chrome.runtime.onInstalled.addListener(() => {

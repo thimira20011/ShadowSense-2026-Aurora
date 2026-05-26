@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React from "react";
 
 interface TrustGaugeProps {
   threatLevel: "low" | "medium" | "high" | "critical";

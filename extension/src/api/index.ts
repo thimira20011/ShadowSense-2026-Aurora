@@ -2,7 +2,7 @@
  * Backend API client for Chrome extension
  */
 
-const API_BASE = process.env.REACT_APP_BACKEND_URL || "http://localhost:8000";
+const API_BASE = import.meta.env.VITE_BACKEND_URL || "http://localhost:8000";
 
 export interface AnalysisRequest {
   content: string;
