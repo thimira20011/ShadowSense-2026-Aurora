@@ -360,7 +360,6 @@ class FiverrChatObserver {
     } else if (attempts < 30) {
       // Retry – the SPA may not have rendered the inbox yet
       this.attachRetryTimer = setTimeout(() => {
-        this.attachRetryTimer = null;
         this.attach(attempts + 1);
       }, 1000);
     } else {
