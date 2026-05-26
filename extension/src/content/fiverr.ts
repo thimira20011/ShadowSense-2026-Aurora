@@ -302,6 +302,8 @@ class FiverrChatObserver {
   private observer: MutationObserver | null = null;
   private debounceTimer: ReturnType<typeof setTimeout> | null = null;
   private chatContainer: Element | null = null;
+  private isScanning = false;
+  private scanQueued = false;
 
   // ── Lifecycle ────────────────────────────────────────────────────────────
 
@@ -366,40 +368,61 @@ class FiverrChatObserver {
   // ── Extraction ───────────────────────────────────────────────────────────
 
   private scheduleExtraction(): void {
+    if (this.isScanning) {
+      this.scanQueued = true;
+      return;
+    }
     if (this.debounceTimer !== null) clearTimeout(this.debounceTimer);
-    this.debounceTimer = setTimeout(() => this.scanAll(), DEBOUNCE_MS);
+    this.debounceTimer = setTimeout(() => {
+      this.debounceTimer = null;
+      void this.scanAll();
+    }, DEBOUNCE_MS);
   }
 
   private async scanAll(): Promise<void> {
-    const root = this.chatContainer ?? document;
-    const rows = queryAll<Element>(root, MESSAGE_ROW_SELECTORS);
-
-    if (rows.length === 0) {
-      // Nothing recognisable yet – could be a non-chat page
+    if (this.isScanning) {
+      this.scanQueued = true;
       return;
     }
+    this.isScanning = true;
 
-    const conversationId = getConversationId();
-    const newMessages: ChatMessage[] = [];
+    try {
+      const root = this.chatContainer ?? document;
+      const rows = queryAll<Element>(root, MESSAGE_ROW_SELECTORS);
 
-    for (const row of rows) {
-      const msg = this.extractMessage(row, conversationId);
-      if (!msg) continue;
+      if (rows.length === 0) {
+        // Nothing recognisable yet – could be a non-chat page
+        return;
+      }
 
-      if (this.seen.has(msg.id)) continue; // already captured
-      this.seen.add(msg.id);
-      newMessages.push(msg);
+      const conversationId = getConversationId();
+      const newMessages: ChatMessage[] = [];
+
+      for (const row of rows) {
+        const msg = this.extractMessage(row, conversationId);
+        if (!msg) continue;
+
+        if (this.seen.has(msg.id)) continue; // already captured
+        this.seen.add(msg.id);
+        newMessages.push(msg);
+      }
+
+      if (newMessages.length === 0) return;
+
+      console.log(
+        `[ShadowSense] Captured ${newMessages.length} new message(s) ` +
+          `in conversation "${conversationId}"`
+      );
+
+      await saveMessages(conversationId, newMessages);
+      this.notifyBackground(newMessages);
+    } finally {
+      this.isScanning = false;
+      if (this.scanQueued) {
+        this.scanQueued = false;
+        this.scheduleExtraction();
+      }
     }
-
-    if (newMessages.length === 0) return;
-
-    console.log(
-      `[ShadowSense] Captured ${newMessages.length} new message(s) ` +
-        `in conversation "${conversationId}"`
-    );
-
-    await saveMessages(conversationId, newMessages);
-    this.notifyBackground(newMessages);
   }
 
   /**
