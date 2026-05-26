@@ -301,6 +301,8 @@ class FiverrChatObserver {
 
   private observer: MutationObserver | null = null;
   private debounceTimer: ReturnType<typeof setTimeout> | null = null;
+  private attachRetryTimer: ReturnType<typeof setTimeout> | null = null;
+  private stopped = false;
   private chatContainer: Element | null = null;
   private isScanning = false;
   private scanQueued = false;
@@ -308,6 +310,7 @@ class FiverrChatObserver {
   // ── Lifecycle ────────────────────────────────────────────────────────────
 
   async init(): Promise<void> {
+    this.stopped = false;
     const conversationId = getConversationId();
 
     // Pre-load fingerprints of already-stored messages for this conversation
@@ -332,9 +335,15 @@ class FiverrChatObserver {
    * Retries every second for up to 30 s to handle SPA lazy-loading.
    */
   private attach(attempts = 0): void {
+    if (this.stopped) return;
+
     const container = queryFirst(document, CHAT_CONTAINER_SELECTORS);
 
     if (container) {
+      if (this.attachRetryTimer !== null) {
+        clearTimeout(this.attachRetryTimer);
+        this.attachRetryTimer = null;
+      }
       this.chatContainer = container;
       this.observer = new MutationObserver(() => this.scheduleExtraction());
       this.observer.observe(container, {
@@ -350,7 +359,10 @@ class FiverrChatObserver {
       );
     } else if (attempts < 30) {
       // Retry – the SPA may not have rendered the inbox yet
-      setTimeout(() => this.attach(attempts + 1), 1000);
+      this.attachRetryTimer = setTimeout(() => {
+        this.attachRetryTimer = null;
+        this.attach(attempts + 1);
+      }, 1000);
     } else {
       console.warn(
         "[ShadowSense] Could not find a chat container after 30 s. " +
@@ -360,9 +372,13 @@ class FiverrChatObserver {
   }
 
   stop(): void {
+    this.stopped = true;
     this.observer?.disconnect();
     this.observer = null;
     if (this.debounceTimer !== null) clearTimeout(this.debounceTimer);
+    this.debounceTimer = null;
+    if (this.attachRetryTimer !== null) clearTimeout(this.attachRetryTimer);
+    this.attachRetryTimer = null;
   }
 
   // ── Extraction ───────────────────────────────────────────────────────────
