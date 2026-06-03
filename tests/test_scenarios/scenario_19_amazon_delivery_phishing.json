@@ -1,0 +1,22 @@
+{
+  "scenario_id": "delivery_phishing_019",
+  "name": "Amazon Delivery Phishing with Fake Customs Fee",
+  "description": "Phishing email impersonating Amazon delivery notification to collect a fake customs duty payment",
+  "conversation": [
+    {
+      "speaker": "phishing_email",
+      "message": "Your package from Amazon is being held at customs. To release it, click here: http://amaz0n-delivery-verify.com/release"
+    },
+    {
+      "speaker": "phishing_email",
+      "message": "Pay the $12.50 customs duty. Your parcel will be returned to sender if not paid within 48 hours."
+    }
+  ],
+  "expected_threat_level": "high",
+  "red_flags": [
+    "Amazon brand impersonation",
+    "Fake customs fee demand",
+    "Typosquatted domain (amaz0n-delivery-verify.com)",
+    "Urgency delivery threat with 48-hour deadline"
+  ]
+}

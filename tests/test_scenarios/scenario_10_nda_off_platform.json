@@ -1,0 +1,26 @@
+{
+  "scenario_id": "off_platform_010",
+  "name": "NDA Excuse to Move Off-Platform",
+  "description": "Scammer uses a fake NDA requirement to redirect freelancer to communicate via personal email",
+  "conversation": [
+    {
+      "speaker": "scammer",
+      "message": "This is an NDA project and cannot be discussed on platform. Please contact me at private.contracts@gmail.com."
+    },
+    {
+      "speaker": "target",
+      "message": "Why can't we discuss here? Fiverr messages are confidential."
+    },
+    {
+      "speaker": "scammer",
+      "message": "I will only share project details off-platform. The budget is $8,000 for 2 weeks. Contact me there first."
+    }
+  ],
+  "expected_threat_level": "high",
+  "red_flags": [
+    "NDA used as off-platform pretext",
+    "Personal Gmail instead of business email",
+    "Bypassing platform communication protection",
+    "High budget bait to motivate compliance"
+  ]
+}

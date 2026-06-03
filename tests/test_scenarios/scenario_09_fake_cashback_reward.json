@@ -1,0 +1,22 @@
+{
+  "scenario_id": "phishing_009",
+  "name": "Fake Fiverr Cashback Reward Phishing",
+  "description": "Phishing email impersonating Fiverr with a fake loyalty reward to steal credentials",
+  "conversation": [
+    {
+      "speaker": "phishing_email",
+      "message": "Your Fiverr account has earned a $200 loyalty cashback reward."
+    },
+    {
+      "speaker": "phishing_email",
+      "message": "Log in through this exclusive link: http://fiverrr-rewards.net/cashback and connect your bank or PayPal to receive the transfer."
+    }
+  ],
+  "expected_threat_level": "critical",
+  "red_flags": [
+    "Typosquatted Fiverr domain (fiverrr-rewards.net)",
+    "Fake cashback reward lure",
+    "Bank and PayPal credential harvesting",
+    "Unsolicited email reward notification"
+  ]
+}
