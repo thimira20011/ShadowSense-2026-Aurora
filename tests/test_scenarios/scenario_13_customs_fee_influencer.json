@@ -1,0 +1,26 @@
+{
+  "scenario_id": "influencer_013",
+  "name": "Fake Brand Collaboration Customs Fee Scam",
+  "description": "Scammer impersonating a luxury brand offering free products but demanding an advance customs fee",
+  "conversation": [
+    {
+      "speaker": "scammer",
+      "message": "Hello, I represent a luxury brand and we need an influencer for a collaboration. We will ship you free products worth $2,000."
+    },
+    {
+      "speaker": "target",
+      "message": "That's exciting! What do I need to do?"
+    },
+    {
+      "speaker": "scammer",
+      "message": "You need to pay a $150 customs clearance fee to our logistics partner first so the package can be released."
+    }
+  ],
+  "expected_threat_level": "critical",
+  "red_flags": [
+    "Fake luxury brand collaboration offer",
+    "Advance customs clearance fee demand",
+    "Physical goods used as bait",
+    "Fake logistics partner intermediary"
+  ]
+}

@@ -1,0 +1,26 @@
+{
+  "scenario_id": "advance_fee_008",
+  "name": "Fake Background Check Fee Scam",
+  "description": "Scammer posing as a hiring firm demands an upfront background check fee from a freelancer",
+  "conversation": [
+    {
+      "speaker": "scammer",
+      "message": "We are a U.S.-based marketing firm. We want to offer you a $5,000/week retainer. We found your Upwork profile."
+    },
+    {
+      "speaker": "target",
+      "message": "That sounds great! What are the requirements?"
+    },
+    {
+      "speaker": "scammer",
+      "message": "You need to purchase a $250 background check through our certified partner at bgcheck-verify-pro.com to complete onboarding."
+    }
+  ],
+  "expected_threat_level": "critical",
+  "red_flags": [
+    "Advance fee disguised as background check",
+    "Suspicious third-party domain",
+    "Too-good-to-be-true weekly retainer",
+    "Fake onboarding process"
+  ]
+}

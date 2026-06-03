@@ -1,0 +1,26 @@
+{
+  "scenario_id": "overpayment_007",
+  "name": "Fake Overpayment Refund Scam",
+  "description": "Scammer claims to have overpaid and requests a refund via an off-platform channel",
+  "conversation": [
+    {
+      "speaker": "scammer",
+      "message": "I'm a buyer looking for a long-term relationship. I sent you a test payment of $1,500 via Fiverr but I accidentally paid too much."
+    },
+    {
+      "speaker": "target",
+      "message": "I haven't received any payment yet actually."
+    },
+    {
+      "speaker": "scammer",
+      "message": "Can you please refund the extra $800 to my PayPal before I release the rest of the contract? It takes time to show in your account."
+    }
+  ],
+  "expected_threat_level": "critical",
+  "red_flags": [
+    "Fake overpayment claim",
+    "Refund request via PayPal off-platform",
+    "Payment not actually received",
+    "Advance contract promise as bait"
+  ]
+}
