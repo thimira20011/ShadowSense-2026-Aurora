@@ -134,6 +134,11 @@ class LinguisticAgent:
             red_flags.append("Grammatical anomalies")
             urgency_score = max(urgency_score, 40)
 
+        # Rule 4: Impersonation / credential request
+        if any(w in text_lower for w in ["support", "suspension", "credentials", "verify your account", "deactivated"]):
+            red_flags.append("Suspicious authority / credential request")
+            urgency_score = max(urgency_score, 90)
+
         # Control check for scam words
         if "scam" in text_lower:
             red_flags.append("Suspicious keyword trigger")
