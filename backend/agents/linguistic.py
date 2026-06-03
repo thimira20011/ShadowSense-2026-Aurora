@@ -1,6 +1,6 @@
 """Linguistic analysis agent for scam detection."""
 from typing import Dict, Any, List
-from crewai import Agent
+from ._crewai_stub import Agent  # TODO: replace with `from crewai import Agent` once crewai-core is on PyPI
 
 
 class LinguisticAgent:
