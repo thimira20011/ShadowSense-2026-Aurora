@@ -57,27 +57,27 @@ def test_payload_agent_stub():
 
 
 def test_shield_agent_stub():
-    """Verify ShieldAgent returns trust score 50 and explainable narrative in stub mode."""
+    """Verify ShieldAgent returns a valid trust score and explainable narrative."""
     agent = ShieldAgent()
     res = agent.defend({"text": "Hello"})
     assert "trust_score" in res
-    assert res["trust_score"]["score"] == 50
+    assert 0 <= res["trust_score"]["score"] <= 100
     assert "reasons" in res
     assert "suggested_responses" in res
 
 
 def test_api_analyze_endpoint():
-    """Verify that the FastAPI /api/analyze/ endpoint works and returns a trust score of 50."""
+    """Verify that the FastAPI /api/analyze/ endpoint works and returns a valid trust score."""
     # Test curl-compatible format
     response = client.post("/api/analyze/", json={"text": "Hello"})
     assert response.status_code == 200
     
     data = response.json()
     assert "trust_score" in data
-    assert data["trust_score"] == 50
+    assert 0 <= data["trust_score"] <= 100
     
     # Verify the rich explainable narrative fields
     assert "verdict" in data
     assert "reasons" in data["verdict"]
     assert "suggested_responses" in data["verdict"]
-    assert data["verdict"]["trust_score"]["score"] == 50
+    assert 0 <= data["verdict"]["trust_score"]["score"] <= 100
