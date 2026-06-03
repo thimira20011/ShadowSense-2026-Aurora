@@ -1,35 +1,59 @@
 """Endpoint for scam analysis requests."""
+from typing import Optional, List, Any, Dict
 from fastapi import APIRouter
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from backend.agents.shield import ShieldAgent
-from backend.models import ChatMessage, DefenseNarrative
+from backend.models import ChatMessage, DefenseNarrative, TrustScore
 
 router = APIRouter(prefix="/api/analyze", tags=["analysis"])
+
+# Single shared ShieldAgent instance (agents are stateless per-request)
 shield = ShieldAgent()
 
 
+class AgentDetails(BaseModel):
+    """Raw per-agent outputs included for transparency and debugging."""
+    linguistic: Dict[str, Any] = Field(default_factory=dict)
+    identity:   Dict[str, Any] = Field(default_factory=dict)
+    payload:    Dict[str, Any] = Field(default_factory=dict)
+
+
 class AnalysisResponse(BaseModel):
-    """Response schema for scam analysis, supporting simple and rich formats."""
-    trust_score: int
-    verdict: DefenseNarrative
+    """Full analysis response including Trust Score, narrative, and agent-level details."""
+    trust_score:        int            = Field(..., description="0 = malicious, 100 = safe")
+    verdict:            DefenseNarrative
+    agent_details:      Optional[AgentDetails] = Field(
+        None, description="Per-agent raw outputs (linguistic, identity, payload)"
+    )
 
 
 @router.post("/", response_model=AnalysisResponse)
 async def analyze_message(message: ChatMessage) -> AnalysisResponse:
-    """Analyze a chat message for scam indicators using the multi-agent Shield system."""
-    # Convert request model to context dictionary for ShieldAgent
-    context = {
-        "text": message.text,
-        "sender": message.sender,
-        "timestamp": message.timestamp,
-        "context": message.context or {}
-    }
-    
-    # Run the comprehensive multi-agent defense assessment
-    narrative_data = shield.defend(context)
-    
-    return AnalysisResponse(
-        trust_score=narrative_data["trust_score"]["score"],
-        verdict=DefenseNarrative(**narrative_data)
-    )
+    """Analyze a chat message for scam indicators using the multi-agent Shield system.
 
+    The Shield coordinates:
+      - LinguisticAgent  (Groq / llama-4-scout)   — urgency, grammar, manipulation
+      - IdentityAgent    (Gemini Flash-Lite)        — account age, reviews, verification
+      - PayloadAgent     (stub → Ollama Week 3)     — file/link threat detection
+    """
+    context = {
+        "text":      message.text,
+        "sender":    message.sender,
+        "timestamp": message.timestamp,
+        "context":   message.context or {},
+    }
+
+    result = shield.defend(context)
+
+    details = result.get("agent_details")
+    agent_details_obj = AgentDetails(**details) if details else None
+
+    return AnalysisResponse(
+        trust_score=result["trust_score"]["score"],
+        verdict=DefenseNarrative(
+            trust_score=TrustScore(**result["trust_score"]),
+            reasons=result.get("reasons", []),
+            suggested_responses=result.get("suggested_responses", []),
+        ),
+        agent_details=agent_details_obj,
+    )
