@@ -1,0 +1,182 @@
+[
+  {
+    "id": "scam_001",
+    "text": "Hi, I can complete this for you but I need you to pay via PayPal Friends & Family or gift card first. Fiverr takes too much commission and I need the money upfront before I begin any work.",
+    "type": "phishing",
+    "severity": 9,
+    "category": "off_platform_payment",
+    "source": "fiverr_message",
+    "red_flags": ["off-platform payment request", "gift card demand", "commission excuse", "upfront payment"]
+  },
+  {
+    "id": "scam_002",
+    "text": "Please confirm your Fiverr account by clicking here: http://fiverr-verify-secure.xyz/login and entering your username and password. Your account will be suspended in 24 hours if not verified.",
+    "type": "phishing",
+    "severity": 10,
+    "category": "credential_harvesting",
+    "source": "email_phishing",
+    "red_flags": ["fake fiverr domain", "urgency threat", "account suspension warning", "credential phishing link"]
+  },
+  {
+    "id": "scam_003",
+    "text": "I delivered your project files inside the ZIP archive. Please extract and run setup.exe to see the preview of the website design I created for you. You must run it to activate the demo license.",
+    "type": "malware",
+    "severity": 10,
+    "category": "malicious_executable",
+    "source": "fiverr_delivery",
+    "red_flags": ["unsolicited executable", "fake demo license", "archive with exe", "social engineering justification"]
+  },
+  {
+    "id": "scam_004",
+    "text": "I am senior developer at Google. I can offer you this exclusive project but I need to verify your identity first. Please send me a photo of your government ID and a selfie for KYC verification.",
+    "type": "impersonation",
+    "severity": 9,
+    "category": "identity_document_harvesting",
+    "source": "fiverr_message",
+    "red_flags": ["false authority claim", "government ID request", "KYC fraud", "unnecessary identity verification"]
+  },
+  {
+    "id": "scam_005",
+    "text": "This is Fiverr Support. We have detected suspicious activity on your account. To avoid permanent suspension, please provide your login credentials and payment details through this secure form immediately.",
+    "type": "impersonation",
+    "severity": 10,
+    "category": "support_impersonation",
+    "source": "fiverr_message",
+    "red_flags": ["support impersonation", "threat of suspension", "credential phishing", "fake urgency"]
+  },
+  {
+    "id": "scam_006",
+    "text": "URGENT: Only 2 hours left on this offer! I will build your entire e-commerce website for $5 but you must order RIGHT NOW. This deal expires at midnight and will never be offered again. Don't miss out!",
+    "type": "phishing",
+    "severity": 6,
+    "category": "fake_urgency",
+    "source": "fiverr_gig_description",
+    "red_flags": ["artificial scarcity", "time pressure", "unrealistic pricing", "high-pressure sales"]
+  },
+  {
+    "id": "scam_007",
+    "text": "Before I start your project I need your full name, home address, date of birth, national insurance number, and bank account details for my legal compliance records. Everyone must fill this out.",
+    "type": "phishing",
+    "severity": 10,
+    "category": "pii_harvesting",
+    "source": "fiverr_message",
+    "red_flags": ["excessive personal info demand", "fake compliance claim", "SSN/bank detail request", "phishing via form"]
+  },
+  {
+    "id": "scam_008",
+    "text": "I need you to download my custom project management tool from this link: http://freelance-tools-pro.net/download. All my clients use it. It keeps communication private and off Fiverr's tracking.",
+    "type": "malware",
+    "severity": 9,
+    "category": "malicious_software_download",
+    "source": "fiverr_message",
+    "red_flags": ["suspicious third-party tool", "off-platform communication", "unverified download link", "privacy excuse"]
+  },
+  {
+    "id": "scam_009",
+    "text": "I am Elon Musk's personal assistant recruiting freelancers for a confidential Tesla project. You will earn $500/hour but you must first pay a $200 registration fee to join our exclusive contractor network.",
+    "type": "impersonation",
+    "severity": 10,
+    "category": "advance_fee_fraud",
+    "source": "fiverr_message",
+    "red_flags": ["celebrity impersonation", "advance fee demand", "too-good-to-be-true offer", "fake registration fee"]
+  },
+  {
+    "id": "scam_010",
+    "text": "Your client account has been randomly selected to receive a $500 Fiverr credit bonus! To claim your bonus, verify your payment method by entering your card number, CVV, and billing address below.",
+    "type": "phishing",
+    "severity": 10,
+    "category": "financial_data_harvesting",
+    "source": "email_phishing",
+    "red_flags": ["fake prize/bonus", "payment card phishing", "CVV request", "unsolicited reward claim"]
+  },
+  {
+    "id": "scam_011",
+    "text": "The project script files are attached. Please open the PowerShell file (run_project.ps1) as Administrator to set up the development environment. This is required for all cross-platform projects.",
+    "type": "malware",
+    "severity": 10,
+    "category": "script_based_malware",
+    "source": "fiverr_delivery",
+    "red_flags": ["PowerShell script delivery", "admin privilege request", "malicious script execution", "fake dev setup justification"]
+  },
+  {
+    "id": "scam_012",
+    "text": "I work directly with Facebook's advertising team. I can get your business page verified with the blue tick for just $150, but the payment must be done via Bitcoin to my wallet address: 1BvBMSEYstWetqTFn5Au4m4GFg7xJaNVN2.",
+    "type": "impersonation",
+    "severity": 9,
+    "category": "service_fraud_impersonation",
+    "source": "fiverr_message",
+    "red_flags": ["fake company affiliation", "cryptocurrency payment demand", "verification scam", "impossible service promise"]
+  },
+  {
+    "id": "scam_013",
+    "text": "Let's move our conversation to Telegram at @freelancer_pro_99 so we can discuss the details privately. Fiverr monitors all messages and I can give you a 50% discount off the platform. Just contact me there.",
+    "type": "phishing",
+    "severity": 8,
+    "category": "off_platform_communication",
+    "source": "fiverr_message",
+    "red_flags": ["off-platform redirect", "privacy manipulation", "discount bait", "bypassing platform protection"]
+  },
+  {
+    "id": "scam_014",
+    "text": "I accidentally sent you $500 via Fiverr. Please refund me through PayPal at myscam@email.com immediately. If you don't return the money within 1 hour I will report you and have your account banned.",
+    "type": "impersonation",
+    "severity": 9,
+    "category": "refund_scam",
+    "source": "fiverr_message",
+    "red_flags": ["fake overpayment", "off-platform refund request", "threat of account reporting", "coercive pressure"]
+  },
+  {
+    "id": "scam_015",
+    "text": "To verify you are a legitimate buyer and not a bot, please complete this quick identity check: http://secure-fiverr-check.com/verify. Enter your Fiverr password and credit card details to proceed.",
+    "type": "phishing",
+    "severity": 10,
+    "category": "fake_verification_phishing",
+    "source": "fiverr_message",
+    "red_flags": ["fake anti-bot verification", "credential phishing", "typosquatted domain", "payment data harvesting"]
+  },
+  {
+    "id": "scam_016",
+    "text": "I have 5 years experience as a Python developer. Please review my portfolio at http://dev-portfolio-files.zip.gg/download and run the portfolio_viewer.exe to see my interactive work samples.",
+    "type": "malware",
+    "severity": 9,
+    "category": "portfolio_malware",
+    "source": "fiverr_gig_description",
+    "red_flags": ["executable in portfolio", "suspicious download domain", "social engineering via portfolio", "ZIP/EXE delivery"]
+  },
+  {
+    "id": "scam_017",
+    "text": "Congratulations! You have been selected as a beta tester for Fiverr Pro. You will receive $1000 payment after completing 3 simple tasks. To get started, purchase $300 worth of Amazon gift cards and share the codes with your supervisor.",
+    "type": "impersonation",
+    "severity": 10,
+    "category": "gift_card_advance_fee",
+    "source": "email_phishing",
+    "red_flags": ["fake beta program", "gift card demand", "advance fee fraud", "too-good-to-be-true earnings"]
+  },
+  {
+    "id": "scam_018",
+    "text": "I noticed your project needs SEO work. I have insider access to Google's search algorithm and can guarantee your website will rank #1 on Google in 48 hours. Pay now and see results or full refund.",
+    "type": "phishing",
+    "severity": 7,
+    "category": "service_fraud",
+    "source": "fiverr_gig_description",
+    "red_flags": ["impossible guarantee", "false insider claim", "fake authority", "unrealistic timeline promise"]
+  },
+  {
+    "id": "scam_019",
+    "text": "Your project review files are in this Google Drive folder. Please install the Google Drive plugin (drive-sync-tool.exe) included in the folder to access the encrypted project documents I prepared for you.",
+    "type": "malware",
+    "severity": 9,
+    "category": "fake_plugin_malware",
+    "source": "fiverr_delivery",
+    "red_flags": ["fake plugin install", "executable disguised as tool", "trusted platform impersonation", "encrypted file social engineering"]
+  },
+  {
+    "id": "scam_020",
+    "text": "I am a verified Fiverr seller with 500+ 5-star reviews (my old account was banned unfairly). For this project I need you to pay $200 upfront via Venmo or Zelle. Once I complete the work I'll send you an invoice through Fiverr.",
+    "type": "phishing",
+    "severity": 8,
+    "category": "advance_payment_fraud",
+    "source": "fiverr_message",
+    "red_flags": ["banned account admission", "off-platform upfront payment", "Venmo/Zelle payment fraud", "deceptive trust building"]
+  }
+]
