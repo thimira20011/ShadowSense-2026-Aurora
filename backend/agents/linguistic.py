@@ -51,11 +51,11 @@ class LinguisticAgent:
             "Analyze the provided chat message for three key components:\n"
             "1. Urgency language: Artificial deadlines, high pressure, demanding quick actions (e.g. 'order now', 'hurry up').\n"
             "2. Grammatical inconsistencies: Broken grammar, non-standard spelling or capitalization, awkward phrasing atypical of a professional buyer.\n"
-            "3. Emotional manipulation and luring: Guilt trips, false authority, FOMO, or directing the user off-platform (e.g. asking to discuss on Telegram, WhatsApp, Discord, or Email instead of Fiverr/Upwork).\n\n"
+            "3. Emotional manipulation and luring: Guilt trips, false authority, FOMO, unpaid trial work traps (e.g. free sample tests, mockups), or directing the user off-platform (e.g. asking to discuss on Telegram, WhatsApp, Discord, or Email instead of Fiverr/Upwork).\n\n"
             "Your response must be a JSON object with this exact structure:\n"
             "{\n"
-            "  \"urgency_score\": <int 0-100 representing the composite threat score. Scoring guide: 0-29 for completely safe, 30-59 for suspicious/borderline or off-platform luring, and 60-100 for high-pressure scams, phishing, or financial fraud. Note: Off-platform luring to Telegram/WhatsApp/etc. must be scored at least 50.>,\n"
-            "  \"red_flags\": [<list of detected red flags like \"Artificial Urgency\", \"Grammatical anomalies\", \"Off-platform luring\", \"Emotional manipulation\">],\n"
+            "  \"urgency_score\": <int 0-100 representing the composite threat score. Scoring guide: 0-29 for completely safe, 30-59 for suspicious/borderline (e.g. unpaid trial trap, contract avoidance) or off-platform luring, and 60-100 for high-pressure scams, phishing, or financial fraud. Note: Off-platform luring, contract avoidance, and unpaid trial work traps must be scored at least 45.>,\n"
+            "  \"red_flags\": [<list of detected red flags like \"Artificial Urgency\", \"Grammatical anomalies\", \"Off-platform luring\", \"Suspicious unpaid trial request\", \"Contract avoidance attempt\">],\n"
             "  \"confidence\": <float 0.0-1.0 representing your confidence in the detection>\n"
             "}\n"
             "Provide ONLY the raw JSON object. Do not include any text outside the JSON object."
@@ -135,9 +135,19 @@ class LinguisticAgent:
             urgency_score = max(urgency_score, 40)
 
         # Rule 4: Impersonation / credential request
-        if any(w in text_lower for w in ["support", "suspension", "credentials", "verify your account", "deactivated"]):
+        if any(w in text_lower for w in ["support", "suspension", "credentials", "verify your account", "deactivated", "verify your billing", "fiverr-payment-verify"]):
             red_flags.append("Suspicious authority / credential request")
             urgency_score = max(urgency_score, 90)
+
+        # Rule 5: Unpaid trial work detection
+        if any(w in text_lower for w in ["test of your skills", "free test", "write a 1,500-word", "mockup"]):
+            red_flags.append("Suspicious unpaid trial request")
+            urgency_score = max(urgency_score, 45)
+
+        # Rule 6: Contract avoidance / off-platform payment
+        if any(w in text_lower for w in ["skip the official contract", "direct transfer", "avoid upwork fees", "avoid fiverr fees"]):
+            red_flags.append("Contract avoidance attempt")
+            urgency_score = max(urgency_score, 55)
 
         # Control check for scam words
         if "scam" in text_lower:
