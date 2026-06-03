@@ -8,6 +8,7 @@ export default defineConfig({
     rollupOptions: {
       input: {
         popup: "popup.html",
+        sandbox: "sandbox.html",
         background: "src/background.ts",
         fiverr: "src/content/fiverr.ts",
       },
