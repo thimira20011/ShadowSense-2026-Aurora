@@ -1,6 +1,6 @@
 """Shield agent for coordinating defense responses."""
 from typing import Dict, Any
-from crewai import Agent
+from ._crewai_stub import Agent  # TODO: replace with `from crewai import Agent` once crewai-core is on PyPI
 from .linguistic import LinguisticAgent
 from .identity import IdentityAgent
 from .payload import PayloadAgent

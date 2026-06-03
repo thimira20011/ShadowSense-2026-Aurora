@@ -1,6 +1,6 @@
 """Payload analysis agent for detecting malicious content."""
 from typing import Dict, Any, List, Union
-from crewai import Agent
+from ._crewai_stub import Agent  # TODO: replace with `from crewai import Agent` once crewai-core is on PyPI
 
 
 class PayloadAgent:
