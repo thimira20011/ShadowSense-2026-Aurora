@@ -1,0 +1,26 @@
+{
+  "scenario_id": "wire_pii_012",
+  "name": "Wire Transfer PII Harvesting via Off-Platform Redirect",
+  "description": "Scammer claiming to bypass platform fees to collect routing number and personal information",
+  "conversation": [
+    {
+      "speaker": "scammer",
+      "message": "I saw your Upwork profile and I want to hire you. But Upwork charges me too much service fee."
+    },
+    {
+      "speaker": "target",
+      "message": "I prefer to keep everything on the platform for security."
+    },
+    {
+      "speaker": "scammer",
+      "message": "I'll pay you double the rate via wire transfer. Please share your full legal name, address, and routing number."
+    }
+  ],
+  "expected_threat_level": "critical",
+  "red_flags": [
+    "Off-platform payment redirect",
+    "Bank routing number request",
+    "Service fee excuse to bypass platform",
+    "Double-rate bait"
+  ]
+}

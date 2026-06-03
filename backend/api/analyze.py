@@ -1,30 +1,35 @@
 """Endpoint for scam analysis requests."""
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter
 from pydantic import BaseModel
-
+from backend.agents.shield import ShieldAgent
+from backend.models import ChatMessage, DefenseNarrative
 
 router = APIRouter(prefix="/api/analyze", tags=["analysis"])
-
-
-class AnalysisRequest(BaseModel):
-    """Request schema for analysis."""
-    content: str
-    context: dict = {}
+shield = ShieldAgent()
 
 
 class AnalysisResponse(BaseModel):
-    """Response schema for analysis."""
-    threat_level: str
-    confidence: float
-    details: dict
+    """Response schema for scam analysis, supporting simple and rich formats."""
+    trust_score: int
+    verdict: DefenseNarrative
 
 
 @router.post("/", response_model=AnalysisResponse)
-async def analyze_content(request: AnalysisRequest):
-    """Analyze content for scam indicators."""
-    # TODO: Implement analysis logic
-    return {
-        "threat_level": "unknown",
-        "confidence": 0.0,
-        "details": {}
+async def analyze_message(message: ChatMessage) -> AnalysisResponse:
+    """Analyze a chat message for scam indicators using the multi-agent Shield system."""
+    # Convert request model to context dictionary for ShieldAgent
+    context = {
+        "text": message.text,
+        "sender": message.sender,
+        "timestamp": message.timestamp,
+        "context": message.context or {}
     }
+    
+    # Run the comprehensive multi-agent defense assessment
+    narrative_data = shield.defend(context)
+    
+    return AnalysisResponse(
+        trust_score=narrative_data["trust_score"]["score"],
+        verdict=DefenseNarrative(**narrative_data)
+    )
+

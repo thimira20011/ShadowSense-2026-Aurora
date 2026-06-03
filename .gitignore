@@ -52,3 +52,9 @@ chromadb/
 .pytest_cache/
 htmlcov/
 .coverage
+
+## Logs
+logs/
+*.log
+*.jsonl
+
