@@ -327,7 +327,7 @@ class FiverrChatObserver {
 
     console.log(
       `[ShadowSense] Loaded ${this.preloadedIds.size} existing messages ` +
-        `for conversation "${conversationId}"`
+      `for conversation "${conversationId}"`
     );
 
     this.attach();
@@ -369,7 +369,7 @@ class FiverrChatObserver {
     } else {
       console.warn(
         "[ShadowSense] Could not find a chat container after 30 s. " +
-          "Fiverr's DOM structure may have changed."
+        "Fiverr's DOM structure may have changed."
       );
     }
   }
@@ -428,7 +428,7 @@ class FiverrChatObserver {
 
       console.log(
         `[ShadowSense] Captured ${newMessages.length} new message(s) ` +
-          `in conversation "${conversationId}"`
+        `in conversation "${conversationId}"`
       );
 
       await saveMessages(conversationId, newMessages);
@@ -482,17 +482,28 @@ class FiverrChatObserver {
     }
 
     // ── Timestamp ─────────────────────────────────────────────────────────
+    const timeEl = queryFirst(row, TIMESTAMP_SELECTORS);
     const timestamp = extractTimestamp(row);
+    const timestampKey =
+      timeEl?.getAttribute("datetime") ||
+      timeEl?.getAttribute("title") ||
+      timeEl?.getAttribute("aria-label") ||
+      timeEl?.textContent?.trim() ||
+      "";
 
     // ── Sender role ───────────────────────────────────────────────────────
     const senderRole = detectSenderRole(row);
 
     // ── Build message object ──────────────────────────────────────────────
-    // Prefer stable DOM message id attributes, otherwise fall back to stable fingerprint
     const domMessageId =
       row.getAttribute("data-message-id") ||
+      row.getAttribute("data-messageid") ||
+      row.getAttribute("data-testid") ||
       row.getAttribute("id");
-    const id = domMessageId || fingerprint(sender, text, timestamp);
+
+    const id = domMessageId
+      ? `fiverr:${conversationId}:${domMessageId}`
+      : fingerprint(sender, text, timestampKey);
 
     const msg: ChatMessage = {
       id,

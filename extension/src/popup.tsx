@@ -1,4 +1,5 @@
 import React, { useState } from "react";
+import ReactDOM from "react-dom/client";
 import { analyzeContent } from "./api";
 import { TrustGauge } from "./components/TrustGauge";
 import "./styles/popup.css";
@@ -65,3 +66,12 @@ export const Popup: React.FC = () => {
 };
 
 export default Popup;
+
+const rootElement = document.getElementById("root");
+if (rootElement) {
+  ReactDOM.createRoot(rootElement).render(
+    <React.StrictMode>
+      <Popup />
+    </React.StrictMode>
+  );
+}
