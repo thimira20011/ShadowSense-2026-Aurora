@@ -1,0 +1,26 @@
+{
+  "scenario_id": "remote_access_015",
+  "name": "AnyDesk Remote Access via Fake Fiverr Support",
+  "description": "Scammer impersonating Fiverr Trust & Safety team to gain remote desktop access to the victim's computer",
+  "conversation": [
+    {
+      "speaker": "scammer",
+      "message": "Hi, I am from the Fiverr Trust & Safety team. There is a dispute on your account affecting your withdrawals."
+    },
+    {
+      "speaker": "target",
+      "message": "I haven't received any official notification. Can you verify who you are?"
+    },
+    {
+      "speaker": "scammer",
+      "message": "To resolve this, share your screen via AnyDesk (ID: 892341567) so I can verify your account and restore your earnings."
+    }
+  ],
+  "expected_threat_level": "critical",
+  "red_flags": [
+    "Fiverr Trust & Safety impersonation",
+    "Remote desktop access request via AnyDesk",
+    "Earnings suspension threat as leverage",
+    "Unsolicited support contact"
+  ]
+}
