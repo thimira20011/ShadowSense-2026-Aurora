@@ -1,9 +1,11 @@
 """Configuration settings for ShadowSense Aurora."""
 import os
+import pathlib
 from dotenv import load_dotenv
 
-
-load_dotenv()
+# Load from the backend directory no matter where the process is started from
+_HERE = pathlib.Path(__file__).parent
+load_dotenv(_HERE / ".env")
 
 
 # API Configuration
@@ -26,6 +28,9 @@ CREWAI_VERBOSE = os.getenv("CREWAI_VERBOSE", "True") == "True"
 GROQ_API_KEY = os.getenv("GROQ_API_KEY")
 _raw_model = os.getenv("GROQ_MODEL", "llama-4-scout")
 GROQ_MODEL = "meta-llama/llama-4-scout-17b-16e-instruct" if _raw_model == "llama-4-scout" else _raw_model
+
+# Gemini Configuration
+GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
 
 # Extension Configuration
 EXTENSION_ID = os.getenv("EXTENSION_ID", "shadowsense-aurora")
