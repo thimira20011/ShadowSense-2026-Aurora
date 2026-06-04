@@ -13,9 +13,13 @@ shield = ShieldAgent()
 
 class AgentDetails(BaseModel):
     """Raw per-agent outputs included for transparency and debugging."""
-    linguistic: Dict[str, Any] = Field(default_factory=dict)
-    identity:   Dict[str, Any] = Field(default_factory=dict)
-    payload:    Dict[str, Any] = Field(default_factory=dict)
+    linguistic:       Dict[str, Any] = Field(default_factory=dict)
+    identity:         Dict[str, Any] = Field(default_factory=dict)
+    payload:          Dict[str, Any] = Field(default_factory=dict)
+    similar_patterns: List[Any]      = Field(
+        default_factory=list,
+        description="Top-k ChromaDB semantic matches (M1 Week-2 checkpoint)",
+    )
 
 
 class AnalysisResponse(BaseModel):
