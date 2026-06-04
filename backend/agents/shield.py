@@ -1,11 +1,27 @@
-"""Shield orchestrator — coordinates all 3 sub-agents and synthesises the Trust Score."""
+"""Shield orchestrator -- coordinates all 3 sub-agents and synthesises the Trust Score."""
+import sys
 import logging
+from pathlib import Path
 from typing import Dict, Any, List
 
 from ._crewai_stub import Agent  # TODO: replace with `from crewai import Agent` once crewai-core is on PyPI
 from .linguistic import LinguisticAgent
 from .identity import IdentityAgent
 from .payload import PayloadAgent
+
+# ---------------------------------------------------------------------------
+# ChromaDB / semantic similarity (ml-pipeline) -- optional, graceful fallback
+# ---------------------------------------------------------------------------
+_ML_PIPELINE_DIR = Path(__file__).resolve().parent.parent.parent / "ml-pipeline"
+if str(_ML_PIPELINE_DIR) not in sys.path:
+    sys.path.insert(0, str(_ML_PIPELINE_DIR))
+
+try:
+    from embeddings import query_similar_scams as _query_similar_scams  # type: ignore
+    _CHROMADB_ENABLED = True
+except Exception as _import_err:
+    _query_similar_scams = None  # type: ignore[assignment]
+    _CHROMADB_ENABLED = False
 
 logger = logging.getLogger(__name__)
 
@@ -57,8 +73,10 @@ class ShieldAgent:
         self.payload    = PayloadAgent()
 
         logger.info(
-            "ShieldAgent initialised. Weights — linguistic: %.1f  identity: %.1f  payload: %.1f",
+            "ShieldAgent initialised. Weights -- linguistic: %.1f  identity: %.1f  payload: %.1f  "
+            "chromadb_enabled: %s",
             _WEIGHTS["linguistic"], _WEIGHTS["identity"], _WEIGHTS["payload"],
+            _CHROMADB_ENABLED,
         )
 
     # ------------------------------------------------------------------
@@ -112,7 +130,22 @@ class ShieldAgent:
         payload_res   = self.payload.analyze(payload_file)
         payload_risk  = float(payload_res.get("payload_risk", 0.0))
 
-        # ── 4. Weighted Trust Score ───────────────────────────────────
+        # -- 4. Semantic similarity (ChromaDB) -- M1 Week-2 checkpoint ------
+        similar_patterns: List[Dict[str, Any]] = []
+        if _CHROMADB_ENABLED and _query_similar_scams is not None:
+            try:
+                similar_patterns = _query_similar_scams(text, top_k=3)
+                if similar_patterns:
+                    top_sim = similar_patterns[0]["similarity"]
+                    logger.info(
+                        "ChromaDB top-3 retrieved. Top similarity: %.4f  type: %s",
+                        top_sim,
+                        similar_patterns[0]["type"],
+                    )
+            except Exception as exc:
+                logger.warning("ChromaDB query failed (non-fatal): %s", exc)
+
+        # -- 5. Weighted Trust Score ----------------------------------------
         weighted_risk = (
             _WEIGHTS["linguistic"] * linguistic_urgency
             + _WEIGHTS["identity"]  * identity_risk
@@ -122,19 +155,20 @@ class ShieldAgent:
 
         logger.info(
             "Shield Trust Score: %d  (linguistic=%.1f, identity=%.1f, payload=%.1f, "
-            "weighted_risk=%.2f)",
+            "weighted_risk=%.2f, chromadb_patterns=%d)",
             score, linguistic_urgency, identity_risk, payload_risk, weighted_risk,
+            len(similar_patterns),
         )
 
-        # ── 5. Intervention level ─────────────────────────────────────
+        # -- 6. Intervention level -------------------------------------------
         level, explanation = self._classify(score)
 
-        # ── 6. Explainable narrative (bullet reasons) ─────────────────
+        # -- 7. Explainable narrative (bullet reasons) -----------------------
         reasons = self._build_reasons(
-            score, linguistic_res, identity_res, payload_res
+            score, linguistic_res, identity_res, payload_res, similar_patterns
         )
 
-        # ── 7. Suggested response templates ───────────────────────────
+        # -- 8. Suggested response templates ---------------------------------
         suggested_responses = self._suggested_responses(score)
 
         return {
@@ -145,11 +179,12 @@ class ShieldAgent:
             },
             "reasons":             reasons,
             "suggested_responses": suggested_responses,
-            # Full per-agent raw results — useful for debugging / UI expansion
+            # Full per-agent raw results -- useful for debugging / UI expansion
             "agent_details": {
-                "linguistic": linguistic_res,
-                "identity":   identity_res,
-                "payload":    payload_res,
+                "linguistic":        linguistic_res,
+                "identity":          identity_res,
+                "payload":           payload_res,
+                "similar_patterns":  similar_patterns,  # ChromaDB top-k
             },
         }
 
@@ -182,6 +217,7 @@ class ShieldAgent:
         linguistic_res: Dict[str, Any],
         identity_res:   Dict[str, Any],
         payload_res:    Dict[str, Any],
+        similar_patterns: List[Dict[str, Any]] = None,
     ) -> List[str]:
         """Build human-readable bullet-point reasons for the Trust Score."""
         reasons: List[str] = []
@@ -197,6 +233,16 @@ class ShieldAgent:
         # Payload threats
         for threat in payload_res.get("threats", []):
             reasons.append(f"Payload Auditor found: {threat}")
+
+        # ChromaDB semantic matches (only surface high-confidence hits)
+        if similar_patterns:
+            for pat in similar_patterns:
+                sim = pat.get("similarity", 0.0)
+                if sim >= 0.55:   # threshold: meaningful semantic overlap
+                    reasons.append(
+                        f"ChromaDB: message matches known {pat['type']} pattern "
+                        f"(similarity {sim:.2f}, category: {pat.get('category', 'unknown')})"
+                    )
 
         # Fallback when no flags raised but score is still low (weighted combination)
         if not reasons and score < 70:

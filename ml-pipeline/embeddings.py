@@ -27,6 +27,8 @@ from __future__ import annotations
 import json
 import logging
 import os
+import time
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
@@ -78,6 +80,10 @@ _DEFAULT_OLLAMA_MODEL = os.getenv("DEEPSEEK_MODEL", "deepseek-r1")
 _REPO_ROOT = Path(__file__).resolve().parent.parent
 _DEFAULT_DB_DIR = _REPO_ROOT / "data" / "chromadb"
 _COLLECTION_NAME = "scam_patterns"
+
+# Query audit log: <repo-root>/logs/chromadb_queries.jsonl
+_LOG_DIR  = _REPO_ROOT / "logs"
+_LOG_FILE = _LOG_DIR / "chromadb_queries.jsonl"
 
 
 # ===========================================================================
@@ -277,6 +283,61 @@ def _get_generator() -> EmbeddingsGenerator:
     return _generator
 
 
+def _log_query(
+    message_text: str,
+    top_k: int,
+    results: List[Dict[str, Any]],
+    embed_ms: float,
+    query_ms: float,
+    total_ms: float,
+    log_file: Path = _LOG_FILE,
+) -> None:
+    """
+    Append one JSONL line to *log_file* recording a ChromaDB query.
+
+    Each line has the structure::
+
+        {
+          "ts":         "2026-06-04T07:12:34.567890+00:00",
+          "query":      "Pay me via gift card...",
+          "top_k":      3,
+          "embed_ms":   12.4,
+          "query_ms":   3.1,
+          "total_ms":   15.5,
+          "n_results":  3,
+          "results": [
+            {"id": "scam_001", "type": "phishing", "category": "...",
+             "similarity": 0.87, "severity": 9}
+          ]
+        }
+    """
+    try:
+        log_file.parent.mkdir(parents=True, exist_ok=True)
+        entry = {
+            "ts":       datetime.now(timezone.utc).isoformat(),
+            "query":    message_text[:200],          # cap at 200 chars for PII safety
+            "top_k":    top_k,
+            "embed_ms": round(embed_ms, 3),
+            "query_ms": round(query_ms, 3),
+            "total_ms": round(total_ms, 3),
+            "n_results": len(results),
+            "results": [
+                {
+                    "id":         r["id"],
+                    "type":       r["type"],
+                    "category":   r["category"],
+                    "similarity": r["similarity"],
+                    "severity":   r["severity"],
+                }
+                for r in results
+            ],
+        }
+        with open(log_file, "a", encoding="utf-8") as fh:
+            fh.write(json.dumps(entry, ensure_ascii=False) + "\n")
+    except Exception as exc:  # never let logging crash the main path
+        log.warning("_log_query: could not write to %s: %s", log_file, exc)
+
+
 def query_similar_scams(
     message_text: str,
     top_k: int = 3,
@@ -339,15 +400,20 @@ def query_similar_scams(
         )
         return []
 
-    # Generate query embedding
+    # ── Step A: Generate query embedding (timed) ──────────────────────────
+    t0_embed = time.perf_counter()
     query_vector = generator.embed_text(message_text.strip())
+    embed_ms = (time.perf_counter() - t0_embed) * 1000
 
-    # Query ChromaDB
+    # ── Step B: Query ChromaDB (timed) ────────────────────────────────────
+    t0_query = time.perf_counter()
     raw = collection.query(
         query_embeddings=[query_vector],
         n_results=min(top_k, collection.count()),
         include=["documents", "metadatas", "distances"],
     )
+    query_ms = (time.perf_counter() - t0_query) * 1000
+    total_ms = embed_ms + query_ms
 
     results: List[Dict[str, Any]] = []
 
@@ -385,10 +451,24 @@ def query_similar_scams(
         )
 
     log.info(
-        "query_similar_scams: '%s…' → %d result(s) returned",
+        "query_similar_scams: '%s...' -> %d result(s) | embed=%.1fms query=%.1fms total=%.1fms",
         message_text[:60],
         len(results),
+        embed_ms,
+        query_ms,
+        total_ms,
     )
+
+    # ── Audit log to JSONL ────────────────────────────────────────────────
+    _log_query(
+        message_text=message_text,
+        top_k=top_k,
+        results=results,
+        embed_ms=embed_ms,
+        query_ms=query_ms,
+        total_ms=total_ms,
+    )
+
     return results
 
 
