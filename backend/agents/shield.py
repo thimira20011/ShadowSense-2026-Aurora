@@ -23,6 +23,16 @@ except Exception as _import_err:
     _query_similar_scams = None  # type: ignore[assignment]
     _CHROMADB_ENABLED = False
 
+# ---------------------------------------------------------------------------
+# Feedback loop — benign-pattern trust-score boost (M1 coordination)
+# ---------------------------------------------------------------------------
+try:
+    from feedback_loop import get_trust_score_boost as _get_trust_score_boost  # type: ignore
+    _FEEDBACK_LOOP_ENABLED = True
+except Exception:
+    _get_trust_score_boost = None  # type: ignore[assignment]
+    _FEEDBACK_LOOP_ENABLED = False
+
 logger = logging.getLogger(__name__)
 
 # Weighted contribution of each agent to the final *risk* score
@@ -151,12 +161,25 @@ class ShieldAgent:
             + _WEIGHTS["identity"]  * identity_risk
             + _WEIGHTS["payload"]   * payload_risk
         )
-        score = max(0, min(100, int(round(100 - weighted_risk))))
+        raw_score = max(0, min(100, int(round(100 - weighted_risk))))
+
+        # -- 5a. Benign-pattern boost (feedback loop coordination) -----------
+        # If 3+ users have overridden this same pattern via "Override + Report",
+        # the feedback loop marks it as benign and grants a +20 trust-score boost.
+        benign_boost = 0
+        if _FEEDBACK_LOOP_ENABLED and _get_trust_score_boost is not None:
+            try:
+                benign_boost = _get_trust_score_boost(text)
+            except Exception as _fb_err:
+                logger.warning("Benign boost lookup failed (non-fatal): %s", _fb_err)
+
+        score = max(0, min(100, raw_score + benign_boost))
 
         logger.info(
-            "Shield Trust Score: %d  (linguistic=%.1f, identity=%.1f, payload=%.1f, "
-            "weighted_risk=%.2f, chromadb_patterns=%d)",
-            score, linguistic_urgency, identity_risk, payload_risk, weighted_risk,
+            "Shield Trust Score: %d  (raw=%d, benign_boost=%d, linguistic=%.1f, "
+            "identity=%.1f, payload=%.1f, weighted_risk=%.2f, chromadb_patterns=%d)",
+            score, raw_score, benign_boost,
+            linguistic_urgency, identity_risk, payload_risk, weighted_risk,
             len(similar_patterns),
         )
 

@@ -1,0 +1,117 @@
+{
+  "meta": {
+    "generated_at": "2026-06-04T20:50:34.531863+00:00",
+    "version": "week3-checkpoint",
+    "project": "ShadowSense 2026 Aurora"
+  },
+  "scam_patterns": {
+    "total_stored": 20,
+    "total_override_reports": 11,
+    "total_benign_promoted": 2
+  },
+  "detection_activity": {
+    "total_queries": 27,
+    "avg_top_similarity": 0.5558,
+    "top_detected_patterns": [
+      {
+        "pattern_id": "scam_020",
+        "detection_count": 16
+      },
+      {
+        "pattern_id": "scam_014",
+        "detection_count": 3
+      },
+      {
+        "pattern_id": "scam_002",
+        "detection_count": 2
+      },
+      {
+        "pattern_id": "scam_006",
+        "detection_count": 2
+      },
+      {
+        "pattern_id": "scam_003",
+        "detection_count": 2
+      },
+      {
+        "pattern_id": "scam_001",
+        "detection_count": 2
+      }
+    ],
+    "top_scam_types": [
+      {
+        "type": "money_mule",
+        "detection_count": 16
+      },
+      {
+        "type": "low_ball_bait",
+        "detection_count": 3
+      },
+      {
+        "type": "phishing",
+        "detection_count": 2
+      },
+      {
+        "type": "malware",
+        "detection_count": 2
+      },
+      {
+        "type": "impersonation",
+        "detection_count": 2
+      },
+      {
+        "type": "payment_scam",
+        "detection_count": 2
+      }
+    ]
+  },
+  "false_positive_analysis": {
+    "total_override_events": 10,
+    "total_detections": 27,
+    "false_positive_rate": 0.3704,
+    "false_positive_pct": 37.04,
+    "top_overridden_patterns": [
+      {
+        "pattern_key": "a73400e338b3509c",
+        "pattern_text": "Please send payment via gift card or PayPal Friends and Family outside the platform.",
+        "override_count": 5
+      },
+      {
+        "pattern_key": "15abd2105975e80a",
+        "pattern_text": "Your Fiverr account will be suspended. Verify by clicking this link immediately.",
+        "override_count": 3
+      },
+      {
+        "pattern_key": "ff8511a78f88bfb9",
+        "pattern_text": "Run setup.exe to preview the deliverable demo files we've sent you.",
+        "override_count": 2
+      }
+    ]
+  },
+  "benign_patterns": {
+    "total_promoted": 2,
+    "benign_threshold": 3,
+    "trust_score_boost": 20,
+    "patterns": [
+      {
+        "pattern_key": "a73400e338b3509c",
+        "pattern_text": "Please send payment via gift card or PayPal Friends and Family outside the platform.",
+        "override_count": 5,
+        "promoted_at": "2026-06-04T20:49:49.446646+00:00",
+        "trust_boost": 20
+      },
+      {
+        "pattern_key": "15abd2105975e80a",
+        "pattern_text": "Your Fiverr account will be suspended. Verify by clicking this link immediately.",
+        "override_count": 3,
+        "promoted_at": "2026-06-04T20:49:49.682584+00:00",
+        "trust_boost": 20
+      }
+    ]
+  },
+  "feedback_loop": {
+    "total_benign_events_in_log": 2,
+    "feedback_loop_status": "operational",
+    "chromadb_status": "connected"
+  }
+}
