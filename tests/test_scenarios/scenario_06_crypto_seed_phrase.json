@@ -1,26 +1,31 @@
-{
-  "scenario_id": "crypto_006",
-  "name": "Crypto Seed Phrase Theft via Investment Scam",
-  "description": "Scammer posing as crypto investment advisor requesting wallet seed phrase",
-  "conversation": [
-    {
-      "speaker": "scammer",
-      "message": "Hello dear, I am a crypto investment advisor. I turned $500 into $47,000 in 3 weeks using a private trading bot."
-    },
-    {
-      "speaker": "target",
-      "message": "That sounds impressive. How does it work?"
-    },
-    {
-      "speaker": "scammer",
-      "message": "Send me your seed phrase to connect your wallet and I'll start trading for you right away."
-    }
-  ],
-  "expected_threat_level": "critical",
-  "red_flags": [
-    "Seed phrase request",
-    "Unrealistic investment returns",
-    "Crypto wallet takeover attempt",
-    "False investment advisor identity"
-  ]
+﻿{
+    "scenario_id":  "crypto_006",
+    "name":  "Crypto Seed Phrase Theft via Investment Scam",
+    "description":  "Scammer posing as crypto investment advisor requesting wallet seed phrase",
+    "conversation":  [
+                         {
+                             "speaker":  "scammer",
+                             "message":  "Hello dear, I am a crypto investment advisor. I turned $500 into $47,000 in 3 weeks using a private trading bot."
+                         },
+                         {
+                             "speaker":  "target",
+                             "message":  "That sounds impressive. How does it work?"
+                         },
+                         {
+                             "speaker":  "scammer",
+                             "message":  "Send me your seed phrase to connect your wallet and I\u0027ll start trading for you right away."
+                         }
+                     ],
+    "expected_threat_level":  "critical",
+    "red_flags":  [
+                      "Seed phrase request",
+                      "Unrealistic investment returns",
+                      "Crypto wallet takeover attempt",
+                      "False investment advisor identity"
+                  ],
+    "expected_trust_score_range":  {
+                                       "min":  0,
+                                       "max":  39
+                                   },
+    "expected_intervention":  "block"
 }
