@@ -79,7 +79,8 @@ _DEFAULT_OLLAMA_MODEL = os.getenv("DEEPSEEK_MODEL", "deepseek-r1")
 # ChromaDB: persistent store lives in  <repo-root>/data/chromadb
 _REPO_ROOT = Path(__file__).resolve().parent.parent
 _DEFAULT_DB_DIR = _REPO_ROOT / "data" / "chromadb"
-_COLLECTION_NAME = "scam_patterns"
+_COLLECTION_NAME     = "scam_patterns"       # Chat message scam patterns
+JOB_SCAM_COLLECTION  = "job_scam_patterns"   # Job listing / gig scam patterns (pre-engagement)
 
 # Query audit log: <repo-root>/logs/chromadb_queries.jsonl
 _LOG_DIR  = _REPO_ROOT / "logs"
