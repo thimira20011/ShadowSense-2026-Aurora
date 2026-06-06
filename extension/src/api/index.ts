@@ -116,3 +116,83 @@ export async function submitOverride(
 
   return response.json() as Promise<OverrideResponse>;
 }
+
+// ─── Pre-Engagement Job Analysis ─────────────────────────────────────────────
+
+export interface ClientProfileRequest {
+  reviews?: number;
+  rating?: number;
+  total_spend?: number;
+  member_since_days?: number;
+  country?: string;
+  verified?: boolean;
+  level?: string;
+  hire_rate?: number;
+  jobs_posted?: number;
+}
+
+export interface PreEngageRequest {
+  /** Source platform: 'fiverr' or 'upwork' */
+  platform: "fiverr" | "upwork";
+  /** Canonical URL of the listing */
+  job_url: string;
+  /** Title of the job posting or gig */
+  job_title: string;
+  /** Full text of the job description */
+  job_description: string;
+  /** Listed budget / price (raw string) */
+  budget?: string;
+  /** Scraped client/buyer profile metadata */
+  client_profile?: ClientProfileRequest;
+}
+
+export interface SimilarJobPattern {
+  text: string;
+  similarity: number;
+  type: string;
+  category: string;
+  severity: number;
+  red_flags: string[];
+}
+
+export interface PreEngageResponse {
+  /**
+   * Pre-Engagement Trust Score: 0 = certain scam, 100 = verified safe.
+   * Badge colours: 70-100 🟢 | 40-69 🟡 | 0-39 🔴
+   */
+  pre_engage_score: number;
+  /** 'VERIFIED_SAFE' | 'MODERATE_RISK' | 'HIGH_RISK' */
+  verdict: string;
+  /** Overall confidence in the verdict 0.0–1.0 */
+  confidence: number;
+  /** Human-readable risk flags */
+  red_flags: string[];
+  /** Top ChromaDB semantic matches from the job_scam_patterns collection */
+  similar_patterns: SimilarJobPattern[];
+  /** Per-signal breakdown of client profile risk */
+  client_risk_breakdown: Record<string, unknown>;
+  platform: string;
+  job_url: string;
+}
+
+/**
+ * Analyse a job/gig listing before the freelancer applies.
+ * Returns a Pre-Engagement Trust Score with verdict and red flags.
+ */
+export async function analyzeJobPosting(
+  request: PreEngageRequest
+): Promise<PreEngageResponse> {
+  const response = await fetch(`${API_BASE}/api/pre-engage/`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(request),
+  });
+
+  if (!response.ok) {
+    throw new Error(
+      `Pre-engage analysis failed: ${response.status} ${response.statusText}`
+    );
+  }
+
+  return response.json() as Promise<PreEngageResponse>;
+}
