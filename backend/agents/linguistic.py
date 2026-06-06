@@ -2,9 +2,10 @@
 import time
 import json
 import logging
+import threading
 from typing import Dict, Any, List
 from groq import Groq
-from backend.config import GROQ_API_KEY, GROQ_MODEL
+from backend.config import GROQ_API_KEYS, GROQ_MODEL
 from ._crewai_stub import Agent  # TODO: replace with `from crewai import Agent` once crewai-core is on PyPI
 
 # Setup logging
@@ -22,18 +23,25 @@ class LinguisticAgent:
             verbose=True,
             allow_delegation=False
         )
-        # Initialize Groq client
-        # If API key is empty/placeholder, we run in mock mode
-        self.api_key = GROQ_API_KEY
         self.model = GROQ_MODEL
+        self._lock = threading.Lock()
+        self._index = 0
+        self.clients = []
+        self._keys = []
         
-        if self.api_key and "placeholder" not in self.api_key.lower():
-            self.client = Groq(api_key=self.api_key)
+        for key in GROQ_API_KEYS:
+            if key and "placeholder" not in key.lower():
+                self.clients.append(Groq(api_key=key))
+                self._keys.append(key)
+        
+        # Expose a default api_key for backward compatibility
+        self.api_key = self._keys[0] if self._keys else None
+        
+        if self.clients:
             self.is_mock = False
         else:
-            self.client = None
             self.is_mock = True
-            logger.warning("GROQ_API_KEY is not configured. Running LinguisticAgent in mock mode.")
+            logger.warning("No valid GROQ_API_KEYS configured. Running LinguisticAgent in mock mode.")
             
     def analyze(self, text: str) -> Dict[str, Any]:
         """Analyze text for linguistic red flags using Groq API."""
@@ -45,6 +53,16 @@ class LinguisticAgent:
             latency = time.perf_counter() - start_time
             logger.info(f"LinguisticAgent analyze latency (mock): {latency:.4f}s")
             return result
+
+        # Select next client and log details
+        with self._lock:
+            current_idx = self._index
+            client = self.clients[current_idx]
+            key_info = self._keys[current_idx]
+            self._index = (self._index + 1) % len(self.clients)
+
+        masked_key = f"...{key_info[-6:]}" if len(key_info) > 6 else key_info
+        logger.info(f"LinguisticAgent: Using Groq API Key index {current_idx} (masked: {masked_key})")
 
         system_prompt = (
             "You are a linguistic analysis security agent specialized in detecting freelance scams.\n"
@@ -62,7 +80,7 @@ class LinguisticAgent:
         )
 
         try:
-            chat_completion = self.client.chat.completions.create(
+            chat_completion = client.chat.completions.create(
                 messages=[
                     {"role": "system", "content": system_prompt},
                     {"role": "user", "content": f"Message to analyze:\n\n{text}"}

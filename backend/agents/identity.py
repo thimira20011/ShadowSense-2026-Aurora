@@ -4,10 +4,11 @@ import json
 import logging
 from typing import Dict, Any
 
+import threading
 from google import genai
 from google.genai import types as genai_types
 
-from backend.config import GEMINI_API_KEY
+from backend.config import GEMINI_API_KEYS
 from ._crewai_stub import Agent  # TODO: replace with `from crewai import Agent` once crewai-core is on PyPI
 
 logger = logging.getLogger(__name__)
@@ -39,16 +40,26 @@ class IdentityAgent:
             allow_delegation=False,
         )
 
-        self.api_key = GEMINI_API_KEY
-        if self.api_key and "placeholder" not in str(self.api_key).lower():
-            self._client = genai.Client(api_key=self.api_key)
+        self._lock = threading.Lock()
+        self._index = 0
+        self._clients = []
+        self._keys = []
+        
+        for key in GEMINI_API_KEYS:
+            if key and "placeholder" not in str(key).lower():
+                self._clients.append(genai.Client(api_key=key))
+                self._keys.append(key)
+        
+        # Expose a default api_key for backward compatibility
+        self.api_key = self._keys[0] if self._keys else None
+        
+        if self._clients:
             self.is_mock = False
-            logger.info("IdentityAgent initialised with Gemini model: %s", _GEMINI_MODEL)
+            logger.info("IdentityAgent initialised with %d Gemini clients, model: %s", len(self._clients), _GEMINI_MODEL)
         else:
-            self._client = None
             self.is_mock = True
             logger.warning(
-                "GEMINI_API_KEY is not configured. Running IdentityAgent in mock mode."
+                "No valid GEMINI_API_KEYS configured. Running IdentityAgent in mock mode."
             )
 
     # ------------------------------------------------------------------
@@ -131,7 +142,17 @@ Key signals to evaluate:
     def _gemini_verify(self, identity_data: Dict[str, Any]) -> Dict[str, Any]:
         prompt = self._build_prompt(identity_data)
 
-        response = self._client.models.generate_content(
+        # Select next client and log details
+        with self._lock:
+            current_idx = self._index
+            client = self._clients[current_idx]
+            key_info = self._keys[current_idx]
+            self._index = (self._index + 1) % len(self._clients)
+
+        masked_key = f"...{key_info[-6:]}" if len(key_info) > 6 else key_info
+        logger.info(f"IdentityAgent: Using Gemini API Key index {current_idx} (masked: {masked_key})")
+
+        response = client.models.generate_content(
             model=_GEMINI_MODEL,
             contents=prompt,
             config=genai_types.GenerateContentConfig(
