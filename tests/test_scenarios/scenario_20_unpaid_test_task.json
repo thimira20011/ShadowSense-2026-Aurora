@@ -1,26 +1,31 @@
-{
-  "scenario_id": "free_work_020",
-  "name": "Unpaid Test Task Free Work Exploitation",
-  "description": "Scammer uses a high hourly rate bait to demand unpaid test work before signing a fake contract",
-  "conversation": [
-    {
-      "speaker": "scammer",
-      "message": "I reviewed your Upwork profile — impressive! I'd like to offer you an ongoing contract at $85/hr."
-    },
-    {
-      "speaker": "target",
-      "message": "That sounds great! What does the project involve?"
-    },
-    {
-      "speaker": "scammer",
-      "message": "You must first complete a test task this week without pay to demonstrate your skills, then we sign the full contract."
-    }
-  ],
-  "expected_threat_level": "medium",
-  "red_flags": [
-    "Unpaid test task requirement",
-    "High hourly rate bait to attract compliance",
-    "Free work extraction tactic",
-    "Deferred contract promise that never materializes"
-  ]
+﻿{
+    "scenario_id":  "free_work_020",
+    "name":  "Unpaid Test Task Free Work Exploitation",
+    "description":  "Scammer uses a high hourly rate bait to demand unpaid test work before signing a fake contract",
+    "conversation":  [
+                         {
+                             "speaker":  "scammer",
+                             "message":  "I reviewed your Upwork profile â€” impressive! I\u0027d like to offer you an ongoing contract at $85/hr."
+                         },
+                         {
+                             "speaker":  "target",
+                             "message":  "That sounds great! What does the project involve?"
+                         },
+                         {
+                             "speaker":  "scammer",
+                             "message":  "You must first complete a test task this week without pay to demonstrate your skills, then we sign the full contract."
+                         }
+                     ],
+    "expected_threat_level":  "medium",
+    "red_flags":  [
+                      "Unpaid test task requirement",
+                      "High hourly rate bait to attract compliance",
+                      "Free work extraction tactic",
+                      "Deferred contract promise that never materializes"
+                  ],
+    "expected_trust_score_range":  {
+                                       "min":  40,
+                                       "max":  69
+                                   },
+    "expected_intervention":  "advisory"
 }

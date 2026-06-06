@@ -1,7 +1,7 @@
 """FastAPI application entry point."""
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from backend.api import analyze, feedback
+from backend.api import analyze, feedback, pre_engage
 from backend.config import API_HOST, API_PORT, DEBUG
 
 
@@ -23,6 +23,7 @@ app.add_middleware(
 # Include routers
 app.include_router(analyze.router)
 app.include_router(feedback.router)
+app.include_router(pre_engage.router)
 
 
 @app.get("/health")

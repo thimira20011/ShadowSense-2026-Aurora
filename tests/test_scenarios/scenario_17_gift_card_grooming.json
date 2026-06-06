@@ -1,26 +1,31 @@
-{
-  "scenario_id": "giftcard_017",
-  "name": "Gift Card Grooming Scam",
-  "description": "Scammer sends a small real payment to build trust then requests gift cards as good faith gesture",
-  "conversation": [
-    {
-      "speaker": "scammer",
-      "message": "I need a developer for a long-term project. I'll send you a sample payment of $50 so you can verify I am serious."
-    },
-    {
-      "speaker": "target",
-      "message": "Okay, I received it. What's the project about?"
-    },
-    {
-      "speaker": "scammer",
-      "message": "I need you to purchase $50 in Steam gift cards for my nephew's birthday as a gesture of good faith before we begin."
-    }
-  ],
-  "expected_threat_level": "critical",
-  "red_flags": [
-    "Trust-building micro payment to lower defenses",
-    "Gift card demand following initial payment",
-    "Good faith manipulation tactic",
-    "Steam gift card scam pattern"
-  ]
+﻿{
+    "scenario_id":  "giftcard_017",
+    "name":  "Gift Card Grooming Scam",
+    "description":  "Scammer sends a small real payment to build trust then requests gift cards as good faith gesture",
+    "conversation":  [
+                         {
+                             "speaker":  "scammer",
+                             "message":  "I need a developer for a long-term project. I\u0027ll send you a sample payment of $50 so you can verify I am serious."
+                         },
+                         {
+                             "speaker":  "target",
+                             "message":  "Okay, I received it. What\u0027s the project about?"
+                         },
+                         {
+                             "speaker":  "scammer",
+                             "message":  "I need you to purchase $50 in Steam gift cards for my nephew\u0027s birthday as a gesture of good faith before we begin."
+                         }
+                     ],
+    "expected_threat_level":  "critical",
+    "red_flags":  [
+                      "Trust-building micro payment to lower defenses",
+                      "Gift card demand following initial payment",
+                      "Good faith manipulation tactic",
+                      "Steam gift card scam pattern"
+                  ],
+    "expected_trust_score_range":  {
+                                       "min":  0,
+                                       "max":  39
+                                   },
+    "expected_intervention":  "block"
 }
