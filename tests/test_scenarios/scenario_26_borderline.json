@@ -1,0 +1,35 @@
+{
+  "scenario_id": "borderline_026",
+  "name": "Pushy Deadline with Off-Platform Hint",
+  "description": "A buyer with a plausible project is slightly pushy on deadlines and casually mentions paying outside the platform as a throwaway comment, but is not definitively a scammer",
+  "conversation": [
+    {
+      "speaker": "buyer",
+      "message": "Hi, I need a WordPress landing page built by this Friday without fail. It is for a product launch and the deadline is absolutely fixed."
+    },
+    {
+      "speaker": "seller",
+      "message": "Friday is tight but possible. Can you share the design brief so I can assess the scope?"
+    },
+    {
+      "speaker": "buyer",
+      "message": "Yes I will send the brief now. By the way, if you can deliver faster I can throw in a small bonus — maybe easier to send directly rather than through the platform fees but whatever works."
+    },
+    {
+      "speaker": "seller",
+      "message": "I prefer to keep payments through Fiverr for both our protection. Happy to discuss a tip through the platform if needed."
+    },
+    {
+      "speaker": "buyer",
+      "message": "Fair enough, no problem. Here is the brief. Let me know if you have questions."
+    }
+  ],
+  "expected_threat_level": "medium",
+  "expected_trust_score_range": { "min": 40, "max": 69 },
+  "expected_intervention": "advisory",
+  "red_flags": [
+    "Casual mention of off-platform payment",
+    "Aggressive deadline pressure",
+    "Bonus incentive to bypass platform"
+  ]
+}

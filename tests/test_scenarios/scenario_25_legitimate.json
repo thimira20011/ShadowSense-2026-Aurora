@@ -1,0 +1,27 @@
+{
+  "scenario_id": "legitimate_025",
+  "name": "Genuine Logo Design Enquiry",
+  "description": "A verified buyer with 48 reviews discusses a legitimate logo redesign project on-platform with a clear budget and professional tone",
+  "conversation": [
+    {
+      "speaker": "buyer",
+      "message": "Hi! I came across your profile and I am really impressed by your portfolio. I run a small artisan bakery and I am looking for a logo redesign that reflects warmth and craftsmanship."
+    },
+    {
+      "speaker": "seller",
+      "message": "Thank you! I would love to help with that. Could you tell me a bit more about your brand style and any existing colours or fonts you want to keep?"
+    },
+    {
+      "speaker": "buyer",
+      "message": "Sure. My budget is around $150 to $200. I will send you the brand brief through the Fiverr message thread. I prefer to keep everything on the platform."
+    },
+    {
+      "speaker": "seller",
+      "message": "Perfect. I will review the brief and send you a custom offer. Looking forward to working with you."
+    }
+  ],
+  "expected_threat_level": "low",
+  "expected_trust_score_range": { "min": 70, "max": 100 },
+  "expected_intervention": "clear",
+  "red_flags": []
+}
