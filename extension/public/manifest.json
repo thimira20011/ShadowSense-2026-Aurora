@@ -32,7 +32,15 @@
       "matches": ["https://www.fiverr.com/*"],
       "js": ["content/fiverr_gig.js"],
       "run_at": "document_idle",
-      "exclude_matches": ["https://www.fiverr.com/inbox*"]
+      "exclude_matches": ["https://www.fiverr.com/inbox*", "https://www.fiverr.com/requests*"]
+    },
+    {
+      "matches": [
+        "https://www.fiverr.com/requests/*",
+        "https://www.fiverr.com/categories/*"
+      ],
+      "js": ["content/fiverr_jobs.js"],
+      "run_at": "document_idle"
     },
     {
       "matches": [

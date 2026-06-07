@@ -12,6 +12,7 @@ export default defineConfig({
         background: "src/background.ts",
         fiverr:     "src/content/fiverr.ts",
         fiverr_gig: "src/content/fiverr_gig.ts",
+        fiverr_jobs: "src/content/fiverr_jobs.ts",
         upwork_gig: "src/content/upwork_gig.ts",
       },
       output: {
@@ -19,6 +20,7 @@ export default defineConfig({
           if (chunkInfo.name === "background")  return "background.js";
           if (chunkInfo.name === "fiverr")      return "content/fiverr.js";
           if (chunkInfo.name === "fiverr_gig")  return "content/fiverr_gig.js";
+          if (chunkInfo.name === "fiverr_jobs") return "content/fiverr_jobs.js";
           if (chunkInfo.name === "upwork_gig")  return "content/upwork_gig.js";
           return "assets/[name]-[hash].js";
         },
