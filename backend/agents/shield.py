@@ -1,6 +1,7 @@
 """Shield orchestrator -- coordinates all 3 sub-agents and synthesises the Trust Score."""
 import sys
 import logging
+import concurrent.futures
 from pathlib import Path
 from typing import Dict, Any, List
 
@@ -120,11 +121,6 @@ class ShieldAgent:
         extra_ctx    = context.get("context", {}) or {}
         sender       = context.get("sender")
 
-        # ── 1. Linguistic analysis (Groq) ─────────────────────────────
-        linguistic_res    = self.linguistic.analyze(text)
-        linguistic_urgency = float(linguistic_res.get("urgency_score", 0.0))
-
-        # ── 2. Identity profiling (Gemini) ────────────────────────────
         profile_meta: Dict[str, Any] = {}
         for key in ("account_age_days", "reviews", "verified", "username", "country", "bio"):
             if key in extra_ctx:
@@ -132,16 +128,47 @@ class ShieldAgent:
         if sender:
             profile_meta.setdefault("username", sender)
 
-        identity_res  = self.identity.verify(profile_meta)
-        identity_risk = float(identity_res.get("identity_risk", 0.0))
-
-        # ── 3. Payload analysis (stub → DeepSeek in Week 3) ───────────
         payload_file  = extra_ctx.get("filename", "")
-        payload_res   = self.payload.analyze(payload_file)
-        payload_risk  = float(payload_res.get("payload_risk", 0.0))
 
-        # -- 4. Semantic similarity (ChromaDB) -- M1 Week-2 checkpoint ------
+        # ── 1. Concurrent Execution (Max 5s) ────────────────────────────
+        executor = concurrent.futures.ThreadPoolExecutor(max_workers=3)
+        future_linguistic = executor.submit(self.linguistic.analyze, text)
+        future_identity = executor.submit(self.identity.verify, profile_meta)
+        future_payload = executor.submit(self.payload.analyze, payload_file)
+
+        done, not_done = concurrent.futures.wait(
+            [future_linguistic, future_identity, future_payload],
+            timeout=5.0,
+            return_when=concurrent.futures.ALL_COMPLETED
+        )
+
+        try:
+            linguistic_res = future_linguistic.result() if future_linguistic in done else {"urgency_score": 0.0, "red_flags": ["Analysis timeout"], "confidence": 0.0}
+        except Exception as e:
+            logger.error(f"Linguistic failed: {e}")
+            linguistic_res = {"urgency_score": 0.0, "red_flags": ["Analysis failed"], "confidence": 0.0}
+            
+        try:
+            identity_res = future_identity.result() if future_identity in done else {"identity_risk": 0.0, "anomalies": ["Analysis timeout"], "confidence": 0.0}
+        except Exception as e:
+            logger.error(f"Identity failed: {e}")
+            identity_res = {"identity_risk": 0.0, "anomalies": ["Analysis failed"], "confidence": 0.0}
+
+        try:
+            payload_res = future_payload.result() if future_payload in done else {"payload_risk": 0.0, "threats": ["Analysis timeout"], "confidence": 0.0}
+        except Exception as e:
+            logger.error(f"Payload failed: {e}")
+            payload_res = {"payload_risk": 0.0, "threats": ["Analysis failed"], "confidence": 0.0}
+
+        executor.shutdown(wait=False)
+
+        linguistic_urgency = float(linguistic_res.get("urgency_score", 0.0))
+        identity_risk = float(identity_res.get("identity_risk", 0.0))
+        payload_risk = float(payload_res.get("payload_risk", 0.0))
+
+        # -- 2. Semantic similarity (ChromaDB) -- M1 Week-2/3 checkpoint ------
         similar_patterns: List[Dict[str, Any]] = []
+        chromadb_penalty = 0.0
         if _CHROMADB_ENABLED and _query_similar_scams is not None:
             try:
                 similar_patterns = _query_similar_scams(text, top_k=3)
@@ -152,18 +179,21 @@ class ShieldAgent:
                         top_sim,
                         similar_patterns[0]["type"],
                     )
+                    # Week 3 task: Penalize trust score based on similarity hits
+                    if top_sim >= 0.5:
+                        chromadb_penalty = (top_sim - 0.4) * 30.0 # e.g. 0.8 -> 0.4 * 30 = 12 penalty points
             except Exception as exc:
                 logger.warning("ChromaDB query failed (non-fatal): %s", exc)
 
-        # -- 5. Weighted Trust Score ----------------------------------------
+        # -- 3. Weighted Trust Score ----------------------------------------
         weighted_risk = (
             _WEIGHTS["linguistic"] * linguistic_urgency
             + _WEIGHTS["identity"]  * identity_risk
             + _WEIGHTS["payload"]   * payload_risk
         )
-        raw_score = max(0, min(100, int(round(100 - weighted_risk))))
+        raw_score = max(0, min(100, int(round(100 - weighted_risk - chromadb_penalty))))
 
-        # -- 5a. Benign-pattern boost (feedback loop coordination) -----------
+        # -- 3a. Benign-pattern boost (feedback loop coordination) -----------
         # If 3+ users have overridden this same pattern via "Override + Report",
         # the feedback loop marks it as benign and grants a +20 trust-score boost.
         benign_boost = 0
@@ -177,9 +207,9 @@ class ShieldAgent:
 
         logger.info(
             "Shield Trust Score: %d  (raw=%d, benign_boost=%d, linguistic=%.1f, "
-            "identity=%.1f, payload=%.1f, weighted_risk=%.2f, chromadb_patterns=%d)",
+            "identity=%.1f, payload=%.1f, chromadb_penalty=%.1f, weighted_risk=%.2f, chromadb_patterns=%d)",
             score, raw_score, benign_boost,
-            linguistic_urgency, identity_risk, payload_risk, weighted_risk,
+            linguistic_urgency, identity_risk, payload_risk, chromadb_penalty, weighted_risk,
             len(similar_patterns),
         )
 
