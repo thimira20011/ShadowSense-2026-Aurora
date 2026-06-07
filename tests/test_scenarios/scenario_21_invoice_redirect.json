@@ -22,5 +22,10 @@
     "Suspicious protonmail contact email",
     "Tip bait to incentivize bypassing platform",
     "Fabricated payment failure excuse"
-  ]
+  ],
+  "expected_trust_score_range": {
+    "min": 0,
+    "max": 39
+  },
+  "expected_intervention": "block"
 }

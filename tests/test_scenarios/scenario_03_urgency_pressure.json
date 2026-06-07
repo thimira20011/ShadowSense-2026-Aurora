@@ -22,5 +22,10 @@
     "Pressure tactics",
     "False scarcity claims",
     "Time pressure"
-  ]
+  ],
+  "expected_trust_score_range": {
+    "min": 0,
+    "max": 39
+  },
+  "expected_intervention": "block"
 }

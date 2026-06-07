@@ -22,5 +22,10 @@
     "Advance customs clearance fee demand",
     "Physical goods used as bait",
     "Fake logistics partner intermediary"
-  ]
+  ],
+  "expected_trust_score_range": {
+    "min": 0,
+    "max": 39
+  },
+  "expected_intervention": "block"
 }

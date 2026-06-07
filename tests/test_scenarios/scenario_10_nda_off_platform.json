@@ -22,5 +22,10 @@
     "Personal Gmail instead of business email",
     "Bypassing platform communication protection",
     "High budget bait to motivate compliance"
-  ]
+  ],
+  "expected_trust_score_range": {
+    "min": 0,
+    "max": 39
+  },
+  "expected_intervention": "block"
 }

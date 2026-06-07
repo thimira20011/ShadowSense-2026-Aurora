@@ -22,5 +22,10 @@
     "Gift card demand following initial payment",
     "Good faith manipulation tactic",
     "Steam gift card scam pattern"
-  ]
+  ],
+  "expected_trust_score_range": {
+    "min": 0,
+    "max": 39
+  },
+  "expected_intervention": "block"
 }

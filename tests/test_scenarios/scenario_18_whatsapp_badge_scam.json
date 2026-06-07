@@ -22,5 +22,10 @@
     "API key theft request",
     "Facebook admin credential phishing",
     "Suspicious third-party verification domain"
-  ]
+  ],
+  "expected_trust_score_range": {
+    "min": 0,
+    "max": 39
+  },
+  "expected_intervention": "block"
 }

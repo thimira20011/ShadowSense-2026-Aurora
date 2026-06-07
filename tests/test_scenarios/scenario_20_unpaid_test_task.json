@@ -22,5 +22,10 @@
     "High hourly rate bait to attract compliance",
     "Free work extraction tactic",
     "Deferred contract promise that never materializes"
-  ]
+  ],
+  "expected_trust_score_range": {
+    "min": 40,
+    "max": 69
+  },
+  "expected_intervention": "advisory"
 }

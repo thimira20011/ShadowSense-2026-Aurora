@@ -18,5 +18,10 @@
     "Executable content",
     "Obfuscated code",
     "Malware signatures detected"
-  ]
+  ],
+  "expected_trust_score_range": {
+    "min": 0,
+    "max": 39
+  },
+  "expected_intervention": "block"
 }

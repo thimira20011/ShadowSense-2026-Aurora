@@ -1,0 +1,32 @@
+{
+  "scenario_id": "legitimate_025",
+  "name": "Genuine Logo Design Enquiry",
+  "description": "A legitimate client approaches a designer on Fiverr with a clear, reasonable brief, pays through the platform, and communicates professionally throughout. This is the control case — the system must NOT flag this conversation.",
+  "conversation": [
+    {
+      "speaker": "client",
+      "message": "Hi! I saw your portfolio and really liked the minimal branding work you did for the coffee shop. I'm looking for a logo for my new bakery — something warm and hand-crafted looking. Budget is $150, timeline is 5 business days. Does that work for you?"
+    },
+    {
+      "speaker": "freelancer",
+      "message": "Thanks for reaching out! That sounds like a fun project. Do you have any color preferences or existing brand assets I should be aware of?"
+    },
+    {
+      "speaker": "client",
+      "message": "We're thinking warm browns and creams. No existing assets yet — this is a fresh start. I'll place the order through Fiverr and share a full brief in the requirements form."
+    },
+    {
+      "speaker": "freelancer",
+      "message": "Perfect. I'll review the brief once the order is placed and reach out if I have any questions before starting. Looking forward to working with you!"
+    },
+    {
+      "speaker": "client",
+      "message": "Order placed! Let me know if you need anything else. Happy to jump on a quick call if it helps."
+    }
+  ],
+  "expected_threat_level": "low",
+  "expected_trust_score_range": { "min": 70, "max": 100 },
+  "expected_intervention": "clear",
+  "red_flags": [],
+  "notes": "Control case — no scam signals present. System must return CLEAR and not raise any alert. A false positive here would undermine user trust in the tool."
+}

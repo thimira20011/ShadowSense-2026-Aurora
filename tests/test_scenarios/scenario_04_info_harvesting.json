@@ -22,5 +22,10 @@
     "Phishing attempt",
     "Personal data harvesting",
     "False platform requirements"
-  ]
+  ],
+  "expected_trust_score_range": {
+    "min": 0,
+    "max": 39
+  },
+  "expected_intervention": "block"
 }

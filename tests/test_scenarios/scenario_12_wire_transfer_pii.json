@@ -22,5 +22,10 @@
     "Bank routing number request",
     "Service fee excuse to bypass platform",
     "Double-rate bait"
-  ]
+  ],
+  "expected_trust_score_range": {
+    "min": 0,
+    "max": 39
+  },
+  "expected_intervention": "block"
 }

@@ -22,5 +22,10 @@
     "IP registration advance fee fraud",
     "Must pay to receive money scheme",
     "Suspicious unverified domain"
-  ]
+  ],
+  "expected_trust_score_range": {
+    "min": 0,
+    "max": 39
+  },
+  "expected_intervention": "block"
 }

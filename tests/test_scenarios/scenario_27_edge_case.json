@@ -1,0 +1,28 @@
+{
+  "scenario_id": "edge_case_027",
+  "name": "Long Unicode Mixed-Language Stress Test",
+  "description": "Tests system stability with an extremely long message containing mixed scripts (Latin, Arabic, CJK, Cyrillic, emoji, RTL/LTR mixing, and zero-width characters). This scenario validates that the backend does not crash, truncate dangerously, or produce NaN/None for the trust score. Any numeric trust score is a valid outcome — this is a robustness test, not a detection test.",
+  "conversation": [
+    {
+      "speaker": "client",
+      "message": "Hello! مرحبا！こんにちは！Привет！I have a very important project for you. It involves multiple languages: العربية, 中文, Ελληνικά, हिन्दी, 日本語, Русский, Türkçe, Português, Việt Nam, ภาษาไทย. The project deadline is URGENT ⚡⚡⚡ and I need your IMMEDIATE response. Payment will be via 💳 gift card OR 🏦 wire transfer OR 📧 email PayPal OUTSIDE the platform because Fiverr charges TOO MUCH. Please send me your personal email, phone number 📱, home address 🏠, bank account number 💰, and mother's maiden name for 'verification'. ALSO: click this link immediately → http://totally-legit-payment.xyz/free-money?ref=scam&token=abc123xyz. This message contains: \u200b\u200c\u200d zero-width spaces to confuse parsers. Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat. Duis aute irure dolor in reprehenderit in voluptate velit esse cillum dolore eu fugiat nulla pariatur. Excepteur sint occaecat cupidatat non proident, sunt in culpa qui officia deserunt mollit anim id est laborum. Sed ut perspiciatis unde omnis iste natus error sit voluptatem accusantium doloremque laudantium, totam rem aperiam, eaque ipsa quae ab illo inventore veritatis et quasi architecto beatae vitae dicta sunt explicabo. Nemo enim ipsam voluptatem quia voluptas sit aspernatur aut odit aut fugit, sed quia consequuntur magni dolores eos qui ratione voluptatem sequi nesciunt. Neque porro quisquam est, qui dolorem ipsum quia dolor sit amet, consectetur, adipisci velit. 🚨🚨🚨 ACT NOW OR LOSE THIS OPPORTUNITY FOREVER 🚨🚨🚨"
+    },
+    {
+      "speaker": "freelancer",
+      "message": "I'm sorry, I cannot provide personal banking or contact information, and I only communicate and accept payment through Fiverr's official platform."
+    }
+  ],
+  "expected_threat_level": "critical",
+  "expected_trust_score_range": { "min": 0, "max": 100 },
+  "expected_intervention": "any",
+  "red_flags": [
+    "Extremely long message (stress test)",
+    "Mixed Unicode scripts including RTL characters",
+    "Zero-width Unicode characters (parser evasion attempt)",
+    "Off-platform payment request embedded in noise",
+    "PII harvesting request",
+    "Suspicious external URL",
+    "Excessive urgency emoji and caps"
+  ],
+  "notes": "Stability / robustness test — the system must not crash, return null/NaN, or time out. Any numeric trust_score between 0-100 is acceptable. A crash or exception is the only failure mode for this scenario."
+}

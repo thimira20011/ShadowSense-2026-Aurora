@@ -22,5 +22,10 @@
     "Travel excuse to justify off-platform communication",
     "Private scope manipulation tactic",
     "Bypassing Fiverr monitoring"
-  ]
+  ],
+  "expected_trust_score_range": {
+    "min": 0,
+    "max": 39
+  },
+  "expected_intervention": "block"
 }

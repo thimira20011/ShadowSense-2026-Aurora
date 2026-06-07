@@ -19,5 +19,10 @@
     "Password-protected PDF social engineering",
     "Fake encrypted client portal pretext",
     "Remote access trojan delivery vector"
-  ]
+  ],
+  "expected_trust_score_range": {
+    "min": 0,
+    "max": 39
+  },
+  "expected_intervention": "block"
 }

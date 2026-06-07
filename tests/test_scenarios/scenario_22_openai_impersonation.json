@@ -22,5 +22,10 @@
     "Government-issued ID phishing",
     "Suspicious fake contractor domain",
     "High hourly rate AI project bait"
-  ]
+  ],
+  "expected_trust_score_range": {
+    "min": 0,
+    "max": 39
+  },
+  "expected_intervention": "block"
 }

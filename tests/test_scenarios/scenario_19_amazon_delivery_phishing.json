@@ -18,5 +18,10 @@
     "Fake customs fee demand",
     "Typosquatted domain (amaz0n-delivery-verify.com)",
     "Urgency delivery threat with 48-hour deadline"
-  ]
+  ],
+  "expected_trust_score_range": {
+    "min": 0,
+    "max": 39
+  },
+  "expected_intervention": "block"
 }

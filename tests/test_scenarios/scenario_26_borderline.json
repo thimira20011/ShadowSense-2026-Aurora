@@ -1,0 +1,37 @@
+{
+  "scenario_id": "borderline_026",
+  "name": "Pushy Deadline with Off-Platform Hint",
+  "description": "A client has a genuine-seeming project but applies mild deadline pressure and casually mentions communicating via WhatsApp — a soft off-platform redirect. Not a definitive scam but shows advisory-tier signals. Tests the system's ability to distinguish high-risk from merely cautious.",
+  "conversation": [
+    {
+      "speaker": "client",
+      "message": "Hi, I need a 10-page website done by Friday — that's in 3 days. It's urgent, my launch date is fixed. Can you do it?"
+    },
+    {
+      "speaker": "freelancer",
+      "message": "That's a tight turnaround. Depending on scope I might be able to do a 5-page version in 3 days. What pages do you need?"
+    },
+    {
+      "speaker": "client",
+      "message": "Landing page, about, services, contact, and a blog. I can pay $200 for the full thing. I have references from past projects if you need."
+    },
+    {
+      "speaker": "freelancer",
+      "message": "$200 for 10 pages in 3 days is below my rate. I could do 5 pages for $180 with the same timeline."
+    },
+    {
+      "speaker": "client",
+      "message": "Okay, let's discuss the details. It's faster if we chat on WhatsApp — I'm barely on Fiverr. My number is in my profile bio."
+    }
+  ],
+  "expected_threat_level": "medium",
+  "expected_trust_score_range": { "min": 40, "max": 69 },
+  "expected_intervention": "advisory",
+  "red_flags": [
+    "Artificial time pressure ('launch date is fixed')",
+    "Below-market rate for scope requested",
+    "Soft off-platform redirect (WhatsApp mention)",
+    "Directing to bio for contact info"
+  ],
+  "notes": "Advisory tier validation — signals are real but ambiguous. A legitimate client might do all of these things. The system should warn, not block. Tuning test: if this scores < 40, the urgency/off-platform weights are too sensitive."
+}

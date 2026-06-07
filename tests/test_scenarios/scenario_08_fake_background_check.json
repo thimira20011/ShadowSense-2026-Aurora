@@ -22,5 +22,10 @@
     "Suspicious third-party domain",
     "Too-good-to-be-true weekly retainer",
     "Fake onboarding process"
-  ]
+  ],
+  "expected_trust_score_range": {
+    "min": 0,
+    "max": 39
+  },
+  "expected_intervention": "block"
 }

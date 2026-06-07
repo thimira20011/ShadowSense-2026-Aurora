@@ -22,5 +22,10 @@
     "Unrealistic investment returns",
     "Crypto wallet takeover attempt",
     "False investment advisor identity"
-  ]
+  ],
+  "expected_trust_score_range": {
+    "min": 0,
+    "max": 39
+  },
+  "expected_intervention": "block"
 }

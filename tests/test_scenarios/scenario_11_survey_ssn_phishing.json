@@ -22,5 +22,10 @@
     "SSN harvesting under tax pretext",
     "Suspicious unverified domain",
     "Unrealistic per-task compensation"
-  ]
+  ],
+  "expected_trust_score_range": {
+    "min": 0,
+    "max": 39
+  },
+  "expected_intervention": "block"
 }

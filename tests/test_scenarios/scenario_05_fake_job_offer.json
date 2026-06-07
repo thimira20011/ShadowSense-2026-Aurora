@@ -22,5 +22,10 @@
     "Bank account information request",
     "No experience required bait",
     "Money mule recruitment pattern"
-  ]
+  ],
+  "expected_trust_score_range": {
+    "min": 0,
+    "max": 39
+  },
+  "expected_intervention": "block"
 }

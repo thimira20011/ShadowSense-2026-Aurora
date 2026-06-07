@@ -22,5 +22,10 @@
     "Refund request via PayPal off-platform",
     "Payment not actually received",
     "Advance contract promise as bait"
-  ]
+  ],
+  "expected_trust_score_range": {
+    "min": 0,
+    "max": 39
+  },
+  "expected_intervention": "block"
 }
