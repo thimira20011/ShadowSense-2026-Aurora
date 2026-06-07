@@ -1,31 +1,31 @@
-{
-  "scenario_id": "brand_impersonation_022",
-  "name": "OpenAI Brand Impersonation Credential Phishing",
-  "description": "Scammer impersonating an OpenAI researcher on Upwork to collect government ID and credentials via a fake contractor portal",
-  "conversation": [
-    {
-      "speaker": "scammer",
-      "message": "I am an AI researcher at OpenAI and I need your help with a confidential model evaluation project paying $200/hour."
-    },
-    {
-      "speaker": "target",
-      "message": "That sounds interesting. What is the process to apply?"
-    },
-    {
-      "speaker": "scammer",
-      "message": "Visit openai-contractor-verify.com/apply and submit your LinkedIn, GitHub, and government-issued ID to verify your eligibility."
-    }
-  ],
-  "expected_threat_level": "critical",
-  "red_flags": [
-    "OpenAI brand impersonation",
-    "Government-issued ID phishing",
-    "Suspicious fake contractor domain",
-    "High hourly rate AI project bait"
-  ],
-  "expected_trust_score_range": {
-    "min": 0,
-    "max": 39
-  },
-  "expected_intervention": "block"
+﻿{
+    "scenario_id":  "brand_impersonation_022",
+    "name":  "OpenAI Brand Impersonation Credential Phishing",
+    "description":  "Scammer impersonating an OpenAI researcher on Upwork to collect government ID and credentials via a fake contractor portal",
+    "conversation":  [
+                         {
+                             "speaker":  "scammer",
+                             "message":  "I am an AI researcher at OpenAI and I need your help with a confidential model evaluation project paying $200/hour."
+                         },
+                         {
+                             "speaker":  "target",
+                             "message":  "That sounds interesting. What is the process to apply?"
+                         },
+                         {
+                             "speaker":  "scammer",
+                             "message":  "Visit openai-contractor-verify.com/apply and submit your LinkedIn, GitHub, and government-issued ID to verify your eligibility."
+                         }
+                     ],
+    "expected_threat_level":  "critical",
+    "red_flags":  [
+                      "OpenAI brand impersonation",
+                      "Government-issued ID phishing",
+                      "Suspicious fake contractor domain",
+                      "High hourly rate AI project bait"
+                  ],
+    "expected_trust_score_range":  {
+                                       "min":  0,
+                                       "max":  39
+                                   },
+    "expected_intervention":  "block"
 }

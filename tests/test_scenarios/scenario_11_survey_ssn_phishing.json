@@ -1,31 +1,31 @@
-{
-  "scenario_id": "survey_phishing_011",
-  "name": "Fake Survey SSN Phishing",
-  "description": "Scammer posing as survey platform requesting Social Security Number under tax form pretext",
-  "conversation": [
-    {
-      "speaker": "phishing_email",
-      "message": "Dear freelancer, you have been pre-selected for a paid online survey worth $500."
-    },
-    {
-      "speaker": "phishing_email",
-      "message": "Complete 5 short tasks and get paid instantly. Register now at survey-rewards-global.com."
-    },
-    {
-      "speaker": "phishing_email",
-      "message": "Enter your social security number for tax form processing to receive your payment."
-    }
-  ],
-  "expected_threat_level": "critical",
-  "red_flags": [
-    "Fake paid survey",
-    "SSN harvesting under tax pretext",
-    "Suspicious unverified domain",
-    "Unrealistic per-task compensation"
-  ],
-  "expected_trust_score_range": {
-    "min": 0,
-    "max": 39
-  },
-  "expected_intervention": "block"
+﻿{
+    "scenario_id":  "survey_phishing_011",
+    "name":  "Fake Survey SSN Phishing",
+    "description":  "Scammer posing as survey platform requesting Social Security Number under tax form pretext",
+    "conversation":  [
+                         {
+                             "speaker":  "phishing_email",
+                             "message":  "Dear freelancer, you have been pre-selected for a paid online survey worth $500."
+                         },
+                         {
+                             "speaker":  "phishing_email",
+                             "message":  "Complete 5 short tasks and get paid instantly. Register now at survey-rewards-global.com."
+                         },
+                         {
+                             "speaker":  "phishing_email",
+                             "message":  "Enter your social security number for tax form processing to receive your payment."
+                         }
+                     ],
+    "expected_threat_level":  "critical",
+    "red_flags":  [
+                      "Fake paid survey",
+                      "SSN harvesting under tax pretext",
+                      "Suspicious unverified domain",
+                      "Unrealistic per-task compensation"
+                  ],
+    "expected_trust_score_range":  {
+                                       "min":  0,
+                                       "max":  39
+                                   },
+    "expected_intervention":  "block"
 }

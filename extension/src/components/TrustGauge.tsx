@@ -1,48 +1,71 @@
-import React from "react";
+import React from 'react';
+import type { ThreatLevel } from '../types';
 
 interface TrustGaugeProps {
-  threatLevel: "low" | "medium" | "high" | "critical";
-  confidence: number;
+  score: number;
+  level: ThreatLevel;
+  isStreaming?: boolean;
 }
 
-export const TrustGauge: React.FC<TrustGaugeProps> = ({
-  threatLevel,
-  confidence,
-}) => {
-  const colorMap = {
-    low: "#4CAF50",
-    medium: "#FFC107",
-    high: "#FF9800",
-    critical: "#F44336",
-  };
+const RADIUS = 24;
+const CIRCUMFERENCE = 2 * Math.PI * RADIUS;
 
-  const arcPercentage = confidence * 100;
+function getStrokeColor(level: ThreatLevel): string {
+  switch (level) {
+    case 'high-risk': return 'var(--color-risk-primary)';
+    case 'advisory': return 'var(--color-warn-primary)';
+    case 'clear': return 'var(--color-clear-primary)';
+  }
+}
+
+function getTextColor(level: ThreatLevel): string {
+  switch (level) {
+    case 'high-risk': return 'var(--color-risk-text)';
+    case 'advisory': return 'var(--color-warn-text)';
+    case 'clear': return 'var(--color-clear-text)';
+  }
+}
+
+export const TrustGauge: React.FC<TrustGaugeProps> = ({ score, level, isStreaming }) => {
+  const offset = isStreaming
+    ? CIRCUMFERENCE
+    : CIRCUMFERENCE - (score / 100) * CIRCUMFERENCE;
+
+  const strokeColor = isStreaming ? 'var(--color-accent-light)' : getStrokeColor(level);
+  const textColor = isStreaming ? 'var(--color-accent-text)' : getTextColor(level);
 
   return (
-    <div className="trust-gauge">
-      <svg width="100" height="100" viewBox="0 0 100 100">
+    <div
+      className={`gauge-svg-container${isStreaming ? ' pulse-glow-loading' : ''}`}
+    >
+      <svg viewBox="0 0 60 60">
         <circle
-          cx="50"
-          cy="50"
-          r="40"
+          className="gauge-track"
+          cx="30"
+          cy="30"
+          r={RADIUS}
           fill="none"
-          stroke="#e0e0e0"
-          strokeWidth="8"
+          stroke="#e4e4e7"
+          strokeWidth="5.5"
         />
         <circle
-          cx="50"
-          cy="50"
-          r="40"
+          className="gauge-fill"
+          cx="30"
+          cy="30"
+          r={RADIUS}
           fill="none"
-          stroke={colorMap[threatLevel]}
-          strokeWidth="8"
-          strokeDasharray={`${(arcPercentage / 100) * 251.2} 251.2`}
-          transform="rotate(-90 50 50)"
+          stroke={strokeColor}
+          strokeWidth="5.5"
+          strokeDasharray={CIRCUMFERENCE}
+          strokeDashoffset={offset}
+          strokeLinecap="round"
+          style={{
+            transition: 'stroke-dashoffset 0.4s cubic-bezier(0.4, 0, 0.2, 1), stroke 0.3s ease',
+          }}
         />
       </svg>
-      <div className="gauge-text">
-        <p className="threat-level">{threatLevel.toUpperCase()}</p>
-        <p className="confidence">{(confidence * 100).toFixed(0)}%</p>
+      <div className="gauge-text" style={{ color: textColor }}>
+        {isStreaming ? '...' : score}
       </div>
     </div>
   );

@@ -1,31 +1,31 @@
-{
-  "scenario_id": "credential_theft_018",
-  "name": "WhatsApp Business Verification Badge Scam",
-  "description": "Scammer impersonating a WhatsApp Business representative to steal API keys and Facebook Business Manager admin credentials",
-  "conversation": [
-    {
-      "speaker": "scammer",
-      "message": "I am a WhatsApp Business representative. We are offering verified green tick badges for qualifying business accounts."
-    },
-    {
-      "speaker": "target",
-      "message": "My page qualifies? How do I apply?"
-    },
-    {
-      "speaker": "scammer",
-      "message": "Send me your WhatsApp Business API key and your Facebook Business Manager admin credentials at verified-wa-badge.com/apply."
-    }
-  ],
-  "expected_threat_level": "critical",
-  "red_flags": [
-    "WhatsApp official representative impersonation",
-    "API key theft request",
-    "Facebook admin credential phishing",
-    "Suspicious third-party verification domain"
-  ],
-  "expected_trust_score_range": {
-    "min": 0,
-    "max": 39
-  },
-  "expected_intervention": "block"
+﻿{
+    "scenario_id":  "credential_theft_018",
+    "name":  "WhatsApp Business Verification Badge Scam",
+    "description":  "Scammer impersonating a WhatsApp Business representative to steal API keys and Facebook Business Manager admin credentials",
+    "conversation":  [
+                         {
+                             "speaker":  "scammer",
+                             "message":  "I am a WhatsApp Business representative. We are offering verified green tick badges for qualifying business accounts."
+                         },
+                         {
+                             "speaker":  "target",
+                             "message":  "My page qualifies? How do I apply?"
+                         },
+                         {
+                             "speaker":  "scammer",
+                             "message":  "Send me your WhatsApp Business API key and your Facebook Business Manager admin credentials at verified-wa-badge.com/apply."
+                         }
+                     ],
+    "expected_threat_level":  "critical",
+    "red_flags":  [
+                      "WhatsApp official representative impersonation",
+                      "API key theft request",
+                      "Facebook admin credential phishing",
+                      "Suspicious third-party verification domain"
+                  ],
+    "expected_trust_score_range":  {
+                                       "min":  0,
+                                       "max":  39
+                                   },
+    "expected_intervention":  "block"
 }

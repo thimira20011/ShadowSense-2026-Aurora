@@ -1,31 +1,31 @@
-{
-  "scenario_id": "invoice_fraud_021",
-  "name": "Invoice Redirect Fraud with Tip Bait",
-  "description": "Scammer fakes a payment failure to redirect freelancer to send an invoice to a suspicious off-platform email",
-  "conversation": [
-    {
-      "speaker": "scammer",
-      "message": "I want to pay for your services but Fiverr says my card is not working on the platform today."
-    },
-    {
-      "speaker": "target",
-      "message": "That's strange. You could try a different card or contact Fiverr support."
-    },
-    {
-      "speaker": "scammer",
-      "message": "Can you send me an invoice to moneytransfer99@protonmail.com? I'll pay via bank transfer and add a 20% tip for the inconvenience."
-    }
-  ],
-  "expected_threat_level": "high",
-  "red_flags": [
-    "Off-platform invoice request",
-    "Suspicious protonmail contact email",
-    "Tip bait to incentivize bypassing platform",
-    "Fabricated payment failure excuse"
-  ],
-  "expected_trust_score_range": {
-    "min": 0,
-    "max": 39
-  },
-  "expected_intervention": "block"
+﻿{
+    "scenario_id":  "invoice_fraud_021",
+    "name":  "Invoice Redirect Fraud with Tip Bait",
+    "description":  "Scammer fakes a payment failure to redirect freelancer to send an invoice to a suspicious off-platform email",
+    "conversation":  [
+                         {
+                             "speaker":  "scammer",
+                             "message":  "I want to pay for your services but Fiverr says my card is not working on the platform today."
+                         },
+                         {
+                             "speaker":  "target",
+                             "message":  "That\u0027s strange. You could try a different card or contact Fiverr support."
+                         },
+                         {
+                             "speaker":  "scammer",
+                             "message":  "Can you send me an invoice to moneytransfer99@protonmail.com? I\u0027ll pay via bank transfer and add a 20% tip for the inconvenience."
+                         }
+                     ],
+    "expected_threat_level":  "high",
+    "red_flags":  [
+                      "Off-platform invoice request",
+                      "Suspicious protonmail contact email",
+                      "Tip bait to incentivize bypassing platform",
+                      "Fabricated payment failure excuse"
+                  ],
+    "expected_trust_score_range":  {
+                                       "min":  0,
+                                       "max":  39
+                                   },
+    "expected_intervention":  "block"
 }

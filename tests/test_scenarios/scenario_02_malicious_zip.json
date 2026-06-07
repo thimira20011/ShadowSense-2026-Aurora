@@ -1,27 +1,27 @@
-{
-  "scenario_id": "malware_001",
-  "name": "Suspicious File Attachment",
-  "description": "Seller sending potentially malicious files",
-  "file_details": {
-    "filename": "project_files.zip",
-    "size_mb": 45,
-    "type": "archive",
-    "suspicious_indicators": [
-      "Executable inside archive",
-      "Obfuscated script",
-      "Known malware signature"
-    ]
-  },
-  "expected_threat_level": "critical",
-  "red_flags": [
-    "Unsolicited file attachment",
-    "Executable content",
-    "Obfuscated code",
-    "Malware signatures detected"
-  ],
-  "expected_trust_score_range": {
-    "min": 0,
-    "max": 39
-  },
-  "expected_intervention": "block"
+﻿{
+    "scenario_id":  "malware_001",
+    "name":  "Suspicious File Attachment",
+    "description":  "Seller sending potentially malicious files",
+    "file_details":  {
+                         "filename":  "project_files.zip",
+                         "size_mb":  45,
+                         "type":  "archive",
+                         "suspicious_indicators":  [
+                                                       "Executable inside archive",
+                                                       "Obfuscated script",
+                                                       "Known malware signature"
+                                                   ]
+                     },
+    "expected_threat_level":  "critical",
+    "red_flags":  [
+                      "Unsolicited file attachment",
+                      "Executable content",
+                      "Obfuscated code",
+                      "Malware signatures detected"
+                  ],
+    "expected_trust_score_range":  {
+                                       "min":  0,
+                                       "max":  39
+                                   },
+    "expected_intervention":  "block"
 }

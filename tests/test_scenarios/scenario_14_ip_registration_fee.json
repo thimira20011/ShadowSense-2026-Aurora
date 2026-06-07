@@ -1,31 +1,31 @@
-{
-  "scenario_id": "ip_fee_014",
-  "name": "Fake IP Rights Registration Advance Fee",
-  "description": "Scammer posing as talent scout for a streaming platform demands a rights registration fee before licensing payment",
-  "conversation": [
-    {
-      "speaker": "scammer",
-      "message": "I am a talent scout for a major streaming platform. We want to license your design work for $15,000."
-    },
-    {
-      "speaker": "target",
-      "message": "That sounds great. How do we proceed?"
-    },
-    {
-      "speaker": "scammer",
-      "message": "You need to pay a $300 rights registration fee through media-rights-register.io to protect your IP during the transfer first."
-    }
-  ],
-  "expected_threat_level": "critical",
-  "red_flags": [
-    "Fake streaming platform talent scout",
-    "IP registration advance fee fraud",
-    "Must pay to receive money scheme",
-    "Suspicious unverified domain"
-  ],
-  "expected_trust_score_range": {
-    "min": 0,
-    "max": 39
-  },
-  "expected_intervention": "block"
+﻿{
+    "scenario_id":  "ip_fee_014",
+    "name":  "Fake IP Rights Registration Advance Fee",
+    "description":  "Scammer posing as talent scout for a streaming platform demands a rights registration fee before licensing payment",
+    "conversation":  [
+                         {
+                             "speaker":  "scammer",
+                             "message":  "I am a talent scout for a major streaming platform. We want to license your design work for $15,000."
+                         },
+                         {
+                             "speaker":  "target",
+                             "message":  "That sounds great. How do we proceed?"
+                         },
+                         {
+                             "speaker":  "scammer",
+                             "message":  "You need to pay a $300 rights registration fee through media-rights-register.io to protect your IP during the transfer first."
+                         }
+                     ],
+    "expected_threat_level":  "critical",
+    "red_flags":  [
+                      "Fake streaming platform talent scout",
+                      "IP registration advance fee fraud",
+                      "Must pay to receive money scheme",
+                      "Suspicious unverified domain"
+                  ],
+    "expected_trust_score_range":  {
+                                       "min":  0,
+                                       "max":  39
+                                   },
+    "expected_intervention":  "block"
 }

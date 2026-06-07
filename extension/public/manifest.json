@@ -2,7 +2,7 @@
   "manifest_version": 3,
   "name": "ShadowSense Aurora",
   "version": "1.0.0",
-  "description": "AI-powered scam detection for Fiverr and beyond",
+  "description": "AI-powered scam detection for Fiverr and Upwork — chat protection + pre-engagement trust scoring",
   "permissions": [
     "activeTab",
     "scripting",
@@ -12,6 +12,7 @@
   ],
   "host_permissions": [
     "https://www.fiverr.com/*",
+    "https://www.upwork.com/*",
     "http://localhost:8000/*"
   ],
   "background": {
@@ -23,8 +24,33 @@
   },
   "content_scripts": [
     {
+      "matches": ["https://www.fiverr.com/inbox*", "https://www.fiverr.com/inbox/*"],
+      "js": ["content/fiverr.js"],
+      "run_at": "document_idle"
+    },
+    {
       "matches": ["https://www.fiverr.com/*"],
-      "js": ["content/fiverr.js"]
+      "js": ["content/fiverr_gig.js"],
+      "run_at": "document_idle",
+      "exclude_matches": ["https://www.fiverr.com/inbox*", "https://www.fiverr.com/requests*"]
+    },
+    {
+      "matches": [
+        "https://www.fiverr.com/requests/*",
+        "https://www.fiverr.com/categories/*"
+      ],
+      "js": ["content/fiverr_jobs.js"],
+      "run_at": "document_idle"
+    },
+    {
+      "matches": [
+        "https://www.upwork.com/jobs/*",
+        "https://www.upwork.com/nx/search/jobs/*",
+        "https://www.upwork.com/ab/jobs/search/*",
+        "https://www.upwork.com/freelance-jobs/*"
+      ],
+      "js": ["content/upwork_gig.js"],
+      "run_at": "document_idle"
     }
   ],
   "icons": {

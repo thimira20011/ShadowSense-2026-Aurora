@@ -1,31 +1,31 @@
-{
-  "scenario_id": "identity_theft_004",
-  "name": "Information Harvesting",
-  "description": "Seller requesting unnecessary personal information",
-  "conversation": [
-    {
-      "speaker": "seller",
-      "message": "Before I start, I need your full name, address, phone number, email, and payment details for verification."
-    },
-    {
-      "speaker": "buyer",
-      "message": "Why do you need all that? This is on a freelance platform..."
-    },
-    {
-      "speaker": "seller",
-      "message": "It's required for my process. Everyone provides it."
-    }
-  ],
-  "expected_threat_level": "critical",
-  "red_flags": [
-    "Unnecessary information requests",
-    "Phishing attempt",
-    "Personal data harvesting",
-    "False platform requirements"
-  ],
-  "expected_trust_score_range": {
-    "min": 0,
-    "max": 39
-  },
-  "expected_intervention": "block"
+﻿{
+    "scenario_id":  "identity_theft_004",
+    "name":  "Information Harvesting",
+    "description":  "Seller requesting unnecessary personal information",
+    "conversation":  [
+                         {
+                             "speaker":  "seller",
+                             "message":  "Before I start, I need your full name, address, phone number, email, and payment details for verification."
+                         },
+                         {
+                             "speaker":  "buyer",
+                             "message":  "Why do you need all that? This is on a freelance platform..."
+                         },
+                         {
+                             "speaker":  "seller",
+                             "message":  "It\u0027s required for my process. Everyone provides it."
+                         }
+                     ],
+    "expected_threat_level":  "critical",
+    "red_flags":  [
+                      "Unnecessary information requests",
+                      "Phishing attempt",
+                      "Personal data harvesting",
+                      "False platform requirements"
+                  ],
+    "expected_trust_score_range":  {
+                                       "min":  0,
+                                       "max":  39
+                                   },
+    "expected_intervention":  "block"
 }

@@ -1,31 +1,31 @@
-{
-  "scenario_id": "phishing_001",
-  "name": "Suspicious Payment Method Request",
-  "description": "Seller requesting payment outside platform",
-  "conversation": [
-    {
-      "speaker": "seller",
-      "message": "Hi, I can offer you the gig but I need payment via gift card first. The platform fees are too high."
-    },
-    {
-      "speaker": "buyer",
-      "message": "That seems unusual. Can I use the normal payment method?"
-    },
-    {
-      "speaker": "seller",
-      "message": "No, only gift card. PayPal/bank transfers are not available currently."
-    }
-  ],
-  "expected_threat_level": "critical",
-  "red_flags": [
-    "Off-platform payment request",
-    "Gift card payment request",
-    "Urgency pressure",
-    "Claiming platform unavailability"
-  ],
-  "expected_trust_score_range": {
-    "min": 0,
-    "max": 39
-  },
-  "expected_intervention": "block"
+﻿{
+    "scenario_id":  "phishing_001",
+    "name":  "Suspicious Payment Method Request",
+    "description":  "Seller requesting payment outside platform",
+    "conversation":  [
+                         {
+                             "speaker":  "seller",
+                             "message":  "Hi, I can offer you the gig but I need payment via gift card first. The platform fees are too high."
+                         },
+                         {
+                             "speaker":  "buyer",
+                             "message":  "That seems unusual. Can I use the normal payment method?"
+                         },
+                         {
+                             "speaker":  "seller",
+                             "message":  "No, only gift card. PayPal/bank transfers are not available currently."
+                         }
+                     ],
+    "expected_threat_level":  "critical",
+    "red_flags":  [
+                      "Off-platform payment request",
+                      "Gift card payment request",
+                      "Urgency pressure",
+                      "Claiming platform unavailability"
+                  ],
+    "expected_trust_score_range":  {
+                                       "min":  0,
+                                       "max":  39
+                                   },
+    "expected_intervention":  "block"
 }

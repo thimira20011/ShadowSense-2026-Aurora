@@ -26,11 +26,22 @@ CREWAI_VERBOSE = os.getenv("CREWAI_VERBOSE", "True") == "True"
 
 # Groq Configuration
 GROQ_API_KEY = os.getenv("GROQ_API_KEY")
+_raw_groq_keys = os.getenv("GROQ_API_KEYS")
+if _raw_groq_keys:
+    GROQ_API_KEYS = [k.strip() for k in _raw_groq_keys.split(",") if k.strip()]
+else:
+    GROQ_API_KEYS = [GROQ_API_KEY] if GROQ_API_KEY else []
+
 _raw_model = os.getenv("GROQ_MODEL", "llama-4-scout")
 GROQ_MODEL = "meta-llama/llama-4-scout-17b-16e-instruct" if _raw_model == "llama-4-scout" else _raw_model
 
 # Gemini Configuration
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
+_raw_gemini_keys = os.getenv("GEMINI_API_KEYS")
+if _raw_gemini_keys:
+    GEMINI_API_KEYS = [k.strip() for k in _raw_gemini_keys.split(",") if k.strip()]
+else:
+    GEMINI_API_KEYS = [GEMINI_API_KEY] if GEMINI_API_KEY else []
 
 # Extension Configuration
 EXTENSION_ID = os.getenv("EXTENSION_ID", "shadowsense-aurora")

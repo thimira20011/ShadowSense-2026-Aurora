@@ -1,31 +1,31 @@
-{
-  "scenario_id": "off_platform_024",
-  "name": "WhatsApp Off-Platform Redirect via Travel Excuse",
-  "description": "Scammer uses a travel excuse to redirect project scope discussion to WhatsApp, avoiding platform monitoring",
-  "conversation": [
-    {
-      "speaker": "scammer",
-      "message": "I saw your gig and I love it. I have a big project but let's discuss on WhatsApp first (+1-555-0192)."
-    },
-    {
-      "speaker": "target",
-      "message": "I prefer to keep discussions on Fiverr. What is the project about?"
-    },
-    {
-      "speaker": "scammer",
-      "message": "I travel a lot and lose access to Fiverr. We can do the contract here but discuss the real scope privately so I can share the full budget freely."
-    }
-  ],
-  "expected_threat_level": "high",
-  "red_flags": [
-    "WhatsApp redirect with phone number",
-    "Travel excuse to justify off-platform communication",
-    "Private scope manipulation tactic",
-    "Bypassing Fiverr monitoring"
-  ],
-  "expected_trust_score_range": {
-    "min": 0,
-    "max": 39
-  },
-  "expected_intervention": "block"
+﻿{
+    "scenario_id":  "off_platform_024",
+    "name":  "WhatsApp Off-Platform Redirect via Travel Excuse",
+    "description":  "Scammer uses a travel excuse to redirect project scope discussion to WhatsApp, avoiding platform monitoring",
+    "conversation":  [
+                         {
+                             "speaker":  "scammer",
+                             "message":  "I saw your gig and I love it. I have a big project but let\u0027s discuss on WhatsApp first (+1-555-0192)."
+                         },
+                         {
+                             "speaker":  "target",
+                             "message":  "I prefer to keep discussions on Fiverr. What is the project about?"
+                         },
+                         {
+                             "speaker":  "scammer",
+                             "message":  "I travel a lot and lose access to Fiverr. We can do the contract here but discuss the real scope privately so I can share the full budget freely."
+                         }
+                     ],
+    "expected_threat_level":  "high",
+    "red_flags":  [
+                      "WhatsApp redirect with phone number",
+                      "Travel excuse to justify off-platform communication",
+                      "Private scope manipulation tactic",
+                      "Bypassing Fiverr monitoring"
+                  ],
+    "expected_trust_score_range":  {
+                                       "min":  0,
+                                       "max":  39
+                                   },
+    "expected_intervention":  "block"
 }
