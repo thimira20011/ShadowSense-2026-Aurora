@@ -1,4 +1,5 @@
 """Endpoint for pre-engagement job listing analysis (Fiverr / Upwork)."""
+from typing import Optional
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, Field
 from backend.models import JobPostingRequest, PreEngageResponse
