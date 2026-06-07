@@ -52,6 +52,7 @@ class PayloadAgent:
             "2. Signs of obfuscated code or known malware patterns.\n"
             "Return ONLY a raw JSON object matching exactly this schema:\n"
             "{\n"
+            "  \"threat_level\": <string: LOW, MEDIUM, HIGH, CRITICAL>,\n"
             "  \"payload_risk\": <int 0-100>,\n"
             "  \"threats\": [<list of strings describing detected threats>],\n"
             "  \"confidence\": <float 0.0-1.0>\n"
@@ -77,6 +78,7 @@ class PayloadAgent:
             parsed = json.loads(response_text)
             
             return {
+                "threat_level": parsed.get("threat_level", "UNKNOWN"),
                 "payload_risk": float(parsed.get("payload_risk", 0.0)),
                 "threats": parsed.get("threats", []),
                 "confidence": float(parsed.get("confidence", 1.0))
@@ -88,6 +90,7 @@ class PayloadAgent:
 
     def _safe_stub(self) -> Dict[str, Any]:
         return {
+            "threat_level": "LOW",
             "payload_risk": 0.0,
             "threats": [],
             "confidence": 1.0
