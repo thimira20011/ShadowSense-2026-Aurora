@@ -291,3 +291,27 @@ class JobRiskAgent:
                 total += penalty
                 flags.append(label)
         return min(total, 50), flags
+
+
+def analyze_job_listing(job_text: str, client_profile: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
+    """Exposes standalone function to score a job listing for scam indicators.
+
+    Separates title and description from the raw job_text and delegates to JobRiskAgent.
+    """
+    agent = JobRiskAgent()
+    parts = job_text.split("\n", 1)
+    if len(parts) == 2:
+        title = parts[0].strip()
+        description = parts[1].strip()
+    else:
+        title = job_text.strip()
+        description = job_text.strip()
+
+    return agent.score(
+        platform="fiverr",
+        job_url="http://localhost/quick-check",
+        job_title=title,
+        job_description=description,
+        client_profile=client_profile,
+    )
+

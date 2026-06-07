@@ -75,7 +75,7 @@ def load_scenarios(scenario_filter: str | None) -> list[dict]:
     scenarios = []
     for f in files:
         try:
-            data = json.loads(f.read_text(encoding="utf-8"))
+            data = json.loads(f.read_text(encoding="utf-8-sig"))
             data["_source_file"] = f.name
             scenarios.append(data)
         except json.JSONDecodeError as exc:
@@ -147,10 +147,10 @@ def evaluate(scenario: dict, actual_score: int | None) -> dict:
     max_score    = score_range.get("max", 100)
 
     if actual_score is None:
-        return {"status": "ERROR", "actual": None, "expected_range": f"{min_score}–{max_score}"}
+        return {"status": "ERROR", "actual": None, "expected_range": f"{min_score}-{max_score}"}
 
     if intervention == "any":
-        status = "PASS"   # edge-case / stability test — any score is valid
+        status = "PASS"   # edge-case / stability test - any score is valid
     elif min_score <= actual_score <= max_score:
         status = "PASS"
     else:
@@ -159,7 +159,7 @@ def evaluate(scenario: dict, actual_score: int | None) -> dict:
     return {
         "status":         status,
         "actual":         actual_score,
-        "expected_range": f"{min_score}–{max_score}",
+        "expected_range": f"{min_score}-{max_score}",
         "intervention":   intervention,
     }
 
@@ -170,15 +170,15 @@ def run(args: argparse.Namespace) -> None:
     scenarios = load_scenarios(args.scenario)
     results   = []
 
-    sep = "─" * 70
-    print(f"\n{'═' * 70}")
-    print("  ShadowSense Aurora — Integration Test Runner (M4)")
+    sep = "-" * 70
+    print(f"\n{'=' * 70}")
+    print("  ShadowSense Aurora - Integration Test Runner (M4)")
     if args.dry_run:
         print(_col("  Mode: DRY-RUN (no HTTP calls)", _YELLOW))
     else:
-        print(f"  Mode: LIVE  →  {args.base_url}")
+        print(f"  Mode: LIVE  ->  {args.base_url}")
     print(f"  Scenarios loaded: {len(scenarios)}")
-    print(f"{'═' * 70}\n")
+    print(f"{'=' * 70}\n")
 
     for sc in scenarios:
         sid   = sc.get("scenario_id", sc["_source_file"])
@@ -188,7 +188,8 @@ def run(args: argparse.Namespace) -> None:
         print(f"{sep}")
         print(f"  {_col(sid, _CYAN)}  {name}")
         print(f"  File  : {sc['_source_file']}")
-        print(f"  Text  : {text[:120]}{'…' if len(text) > 120 else ''}")
+        safe_text = text[:120].encode(sys.stdout.encoding or 'utf-8', errors='replace').decode(sys.stdout.encoding or 'utf-8')
+        print(f"  Text  : {safe_text}...")
 
         if args.dry_run:
             result = {
@@ -197,10 +198,10 @@ def run(args: argparse.Namespace) -> None:
                 "source_file": sc["_source_file"],
                 "status":      "PENDING",
                 "actual":      None,
-                "expected_range": f"{sc.get('expected_trust_score_range', {}).get('min', 0)}–"
+                "expected_range": f"{sc.get('expected_trust_score_range', {}).get('min', 0)}-"
                                   f"{sc.get('expected_trust_score_range', {}).get('max', 100)}",
                 "intervention":   sc.get("expected_intervention", "any"),
-                "notes":          "Dry-run — awaiting live backend",
+                "notes":          "Dry-run - awaiting live backend",
             }
             print(_col("  Status: PENDING (dry-run)", _YELLOW))
         else:
@@ -241,16 +242,16 @@ def run(args: argparse.Namespace) -> None:
         results.append(result)
 
     # ── Summary ───────────────────────────────────────────────────────────────
-    print(f"\n{'═' * 70}")
+    print(f"\n{'=' * 70}")
     print("  SUMMARY")
-    print(f"{'═' * 70}")
+    print(f"{'=' * 70}")
 
     counts = {"PASS": 0, "FAIL": 0, "ERROR": 0, "PENDING": 0}
     for r in results:
         counts[r["status"]] = counts.get(r["status"], 0) + 1
-        icon = {"PASS": "✔", "FAIL": "✘", "ERROR": "✘", "PENDING": "⋯"}.get(r["status"], "?")
+        icon = {"PASS": "[v]", "FAIL": "[x]", "ERROR": "[x]", "PENDING": "[?]"}.get(r["status"], "?")
         col  = {"PASS": _GREEN, "FAIL": _RED, "ERROR": _RED, "PENDING": _YELLOW}.get(r["status"], _RESET)
-        score_str = f"{r['actual']}/100" if r["actual"] is not None else "    —"
+        score_str = f"{r['actual']}/100" if r["actual"] is not None else "    -"
         print(f"  {_col(icon, col)}  {r['scenario_id']:<40} {score_str:<9} {r['expected_range']}")
 
     total = len(results)
@@ -260,7 +261,7 @@ def run(args: argparse.Namespace) -> None:
         print(_col(f"  Failed  : {counts['FAIL'] + counts['ERROR']}/{total}", _RED))
     if counts["PENDING"]:
         print(_col(f"  Pending : {counts['PENDING']}/{total}", _YELLOW))
-    print(f"{'═' * 70}\n")
+    print(f"{'=' * 70}\n")
 
     # ── Write RESULTS.md ──────────────────────────────────────────────────────
     write_results_md(results, args.dry_run)

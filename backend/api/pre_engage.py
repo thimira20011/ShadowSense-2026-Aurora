@@ -1,5 +1,7 @@
 """Endpoint for pre-engagement job listing analysis (Fiverr / Upwork)."""
+from typing import Optional
 from fastapi import APIRouter, HTTPException
+from pydantic import BaseModel, Field
 from backend.models import JobPostingRequest, PreEngageResponse
 from backend.agents.job_risk import JobRiskAgent
 
@@ -47,3 +49,31 @@ async def analyze_job_posting(request: JobPostingRequest) -> PreEngageResponse:
     )
 
     return PreEngageResponse(**result)
+
+
+class QuickJobPostingRequest(BaseModel):
+    """Payload for quick pre-engagement analysis request."""
+    job_text: str = Field(..., description="The content of the job listing to analyze")
+    client_profile: Optional[dict] = Field(default_factory=dict, description="Scraped client/buyer profile metadata")
+
+
+@router.post("/quick", response_model=PreEngageResponse)
+async def analyze_quick_job_posting(request: QuickJobPostingRequest) -> PreEngageResponse:
+    """
+    Analyse a job text quickly without needing full structured job listing details.
+    """
+    if not request.job_text or not request.job_text.strip():
+        raise HTTPException(
+            status_code=422,
+            detail="job_text must be a non-empty string.",
+        )
+
+    from backend.agents.job_risk import analyze_job_listing
+
+    result = analyze_job_listing(
+        job_text=request.job_text,
+        client_profile=request.client_profile,
+    )
+
+    return PreEngageResponse(**result)
+
