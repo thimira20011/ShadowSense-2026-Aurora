@@ -37,7 +37,7 @@ const SandboxApp: React.FC = () => {
             <div className="block-label">
               📐 Popup UI Module (340px)
             </div>
-            <PopupPanel state={state} />
+            <PopupPanel state={state} messageId="sandbox-preview-001" />
           </div>
           <div>
             <div className="block-label">
