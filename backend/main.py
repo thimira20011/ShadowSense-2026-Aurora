@@ -1,4 +1,12 @@
 """FastAPI application entry point."""
+import sys
+from pathlib import Path
+
+# Add project root to sys.path so 'backend' module is found when run directly
+_project_root = Path(__file__).resolve().parent.parent
+if str(_project_root) not in sys.path:
+    sys.path.insert(0, str(_project_root))
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from backend.api import analyze, feedback, pre_engage
@@ -34,4 +42,4 @@ async def health_check():
 
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run(app, host=API_HOST, port=API_PORT, reload=DEBUG)
+    uvicorn.run("main:app", host=API_HOST, port=API_PORT, reload=DEBUG)

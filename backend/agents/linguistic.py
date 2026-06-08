@@ -4,8 +4,12 @@ import json
 import logging
 import threading
 from typing import Dict, Any, List
+
 from groq import Groq
-from backend.config import GROQ_API_KEYS, GROQ_MODEL
+from google import genai
+from google.genai import types as genai_types
+
+from backend.config import GROQ_API_KEYS, GROQ_MODEL, GEMINI_API_KEYS
 from ._crewai_stub import Agent  # TODO: replace with `from crewai import Agent` once crewai-core is on PyPI
 
 # Setup logging
@@ -42,9 +46,17 @@ class LinguisticAgent:
         else:
             self.is_mock = True
             logger.warning("No valid GROQ_API_KEYS configured. Running LinguisticAgent in mock mode.")
+
+        # Gemini fallback setup
+        self._gemini_lock = threading.Lock()
+        self._gemini_index = 0
+        self._gemini_clients = []
+        for key in GEMINI_API_KEYS:
+            if key and "placeholder" not in str(key).lower():
+                self._gemini_clients.append(genai.Client(api_key=key))
             
     def analyze(self, text: str) -> Dict[str, Any]:
-        """Analyze text for linguistic red flags using Groq API."""
+        """Analyze text for linguistic red flags using Groq API, fallback to Gemini."""
         start_time = time.perf_counter()
         
         if self.is_mock:
@@ -53,6 +65,8 @@ class LinguisticAgent:
             latency = time.perf_counter() - start_time
             logger.info(f"LinguisticAgent analyze latency (mock): {latency:.4f}s")
             return result
+
+        system_prompt = self._build_prompt()
 
         # Select next client and log details
         with self._lock:
@@ -64,7 +78,80 @@ class LinguisticAgent:
         masked_key = f"...{key_info[-6:]}" if len(key_info) > 6 else key_info
         logger.info(f"LinguisticAgent: Using Groq API Key index {current_idx} (masked: {masked_key})")
 
-        system_prompt = (
+        try:
+            chat_completion = client.chat.completions.create(
+                messages=[
+                    {"role": "system", "content": system_prompt},
+                    {"role": "user", "content": f"Message to analyze:\n\n{text}"}
+                ],
+                model=self.model,
+                response_format={"type": "json_object"},
+                temperature=0.0,
+                timeout=4.5 # Fast timeout to allow fallback if needed
+            )
+            content = chat_completion.choices[0].message.content
+            
+            # Parse the JSON
+            parsed = self._safe_parse_json(content)
+            
+            latency = time.perf_counter() - start_time
+            logger.info(f"LinguisticAgent analyze latency (Groq): {latency:.4f}s (Model: {self.model})")
+            
+            return {
+                "patterns": parsed.get("red_flags", []),
+                "urgency_score": float(parsed.get("urgency_score", 0.0)),
+                "red_flags": parsed.get("red_flags", []),
+                "confidence": float(parsed.get("confidence", 1.0))
+            }
+
+        except Exception as e:
+            logger.error(f"Groq API error: {e}. Falling back to Gemini API.")
+            return self._gemini_analyze(text, start_time)
+
+    def _gemini_analyze(self, text: str, start_time: float) -> Dict[str, Any]:
+        """Fallback method using Gemini API."""
+        if not self._gemini_clients:
+            logger.warning("No Gemini clients available for fallback. Falling back to mock analysis.")
+            return self._mock_analyze(text)
+
+        system_prompt = self._build_prompt()
+        prompt = f"{system_prompt}\n\nMessage to analyze:\n\n{text}"
+
+        with self._gemini_lock:
+            current_idx = self._gemini_index
+            client = self._gemini_clients[current_idx]
+            self._gemini_index = (self._gemini_index + 1) % len(self._gemini_clients)
+
+        try:
+            # Using Gemini 2.0 Flash as the fallback model
+            response = client.models.generate_content(
+                model="models/gemini-2.0-flash",
+                contents=prompt,
+                config=genai_types.GenerateContentConfig(
+                    temperature=0.0,
+                    response_mime_type="application/json",
+                ),
+            )
+            content = response.text.strip() if response.text else "{}"
+            parsed = self._safe_parse_json(content)
+            
+            latency = time.perf_counter() - start_time
+            logger.info(f"LinguisticAgent analyze latency (Gemini fallback): {latency:.4f}s")
+            
+            return {
+                "patterns": parsed.get("red_flags", []),
+                "urgency_score": float(parsed.get("urgency_score", 0.0)),
+                "red_flags": parsed.get("red_flags", []),
+                "confidence": float(parsed.get("confidence", 1.0))
+            }
+
+        except Exception as e:
+            latency = time.perf_counter() - start_time
+            logger.error(f"Gemini API fallback error: {e}. Falling back to rule-based mock analysis. Total latency: {latency:.4f}s")
+            return self._mock_analyze(text)
+
+    def _build_prompt(self) -> str:
+        return (
             "You are a linguistic analysis security agent specialized in detecting freelance scams.\n"
             "Analyze the provided chat message for three key components:\n"
             "1. Urgency language: Artificial deadlines, high pressure, demanding quick actions (e.g. 'order now', 'hurry up').\n"
@@ -79,44 +166,10 @@ class LinguisticAgent:
             "Provide ONLY the raw JSON object. Do not include any text outside the JSON object."
         )
 
-        try:
-            chat_completion = client.chat.completions.create(
-                messages=[
-                    {"role": "system", "content": system_prompt},
-                    {"role": "user", "content": f"Message to analyze:\n\n{text}"}
-                ],
-                model=self.model,
-                response_format={"type": "json_object"},
-                temperature=0.0  # Greedy decoding for consistency
-            )
-            content = chat_completion.choices[0].message.content
-            
-            # Parse the JSON
-            parsed = self._safe_parse_json(content)
-            
-            latency = time.perf_counter() - start_time
-            logger.info(f"LinguisticAgent analyze latency (Groq): {latency:.4f}s (Model: {self.model})")
-            print(f"LinguisticAgent analyze latency: {latency:.4f}s (Model: {self.model})")
-            
-            # Maintain compatibility with legacy properties while returning the new structured JSON
-            return {
-                "patterns": parsed.get("red_flags", []),
-                "urgency_score": float(parsed.get("urgency_score", 0.0)),
-                "red_flags": parsed.get("red_flags", []),
-                "confidence": float(parsed.get("confidence", 1.0))
-            }
-
-        except Exception as e:
-            latency = time.perf_counter() - start_time
-            logger.error(f"Groq API error: {e}. Falling back to rule-based mock analysis. Latency: {latency:.4f}s")
-            print(f"Groq API error: {e}. Falling back to rule-based mock analysis. Latency: {latency:.4f}s")
-            return self._mock_analyze(text)
-
     def _safe_parse_json(self, content: str) -> Dict[str, Any]:
         """Safely parse JSON from LLM response, stripping potential markdown wrapper."""
         content_str = content.strip()
         if content_str.startswith("```"):
-            # strip markdown lines
             lines = content_str.split("\n")
             if lines[0].startswith("```"):
                 lines = lines[1:]
