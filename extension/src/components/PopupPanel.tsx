@@ -1,68 +1,97 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { TrustGauge } from './TrustGauge';
 import { AgentChips } from './AgentChips';
 import { RiskFactors } from './RiskFactors';
 import { SafeResponse } from './SafeResponse';
 import { ActionButtons } from './ActionButtons';
+import { AlertOverlay } from './AlertOverlay';
+import { DefenseNarrative } from './DefenseNarrative';
 import type { SimulationState } from '../types';
 import { getStatusLabel } from '../types';
+import type { OverridePayload } from './AlertOverlay';
 
 interface PopupPanelProps {
   state: SimulationState;
+  messageId?: string;
 }
 
 function getGaugeCardBg(level: string): string {
   switch (level) {
     case 'high-risk': return '#fff5f5';
-    case 'advisory': return '#fffbf0';
-    case 'clear': return '#f0fdf8';
-    default: return 'transparent';
+    case 'advisory':  return '#fffbf0';
+    case 'clear':     return '#f0fdf8';
+    default:          return 'transparent';
   }
 }
 
 function getPillClass(level: string): string {
   switch (level) {
     case 'high-risk': return 'pill pill-red';
-    case 'advisory': return 'pill pill-amber';
-    case 'clear': return 'pill pill-green';
-    default: return 'pill pill-purple';
+    case 'advisory':  return 'pill pill-amber';
+    case 'clear':     return 'pill pill-green';
+    default:          return 'pill pill-purple';
   }
 }
 
 function getBorderColor(level: string): string {
   switch (level) {
     case 'high-risk': return 'var(--color-risk-primary)';
-    case 'advisory': return 'var(--color-warn-primary)';
-    case 'clear': return 'var(--color-clear-primary)';
-    default: return 'var(--color-border-primary)';
+    case 'advisory':  return 'var(--color-warn-primary)';
+    case 'clear':     return 'var(--color-clear-primary)';
+    default:          return 'var(--color-border-primary)';
   }
 }
 
-export const PopupPanel: React.FC<PopupPanelProps> = ({ state }) => {
+export const PopupPanel: React.FC<PopupPanelProps> = ({
+  state,
+  messageId = 'fiverr-msg-001',
+}) => {
   const { score, level, agents, reasons, suggestedResponse, isStreaming } = state;
+
+  /** When overlay is dismissed (override / false-positive), unlock normal UI */
+  const [overlayDismissed, setOverlayDismissed] = useState(false);
+
+  const handleFeedbackSent = (payload: OverridePayload) => {
+    console.log('[ShadowSense] PopupPanel ← feedback event:', payload);
+  };
 
   return (
     <div
       className="ext-popup"
       style={{
-        borderColor: isStreaming ? 'var(--color-accent-light)' : getBorderColor(level),
+        borderColor: isStreaming
+          ? 'var(--color-accent-light)'
+          : getBorderColor(level),
         transition: 'border-color 0.3s ease',
+        position: 'relative',
+        overflow: 'visible', // allow modal to overflow popup bounds
       }}
     >
-      {/* Header */}
+      {/* ─── AlertOverlay: absolute over popup (advisory banner or high-risk modal) ─ */}
+      {!overlayDismissed && !isStreaming && (
+        <AlertOverlay
+          score={score}
+          level={level}
+          messageId={messageId}
+          onDismiss={() => setOverlayDismissed(true)}
+          onFeedbackSent={handleFeedbackSent}
+        />
+      )}
+
+      {/* ─── Header ── */}
       <div className="ext-header">
         <div className="ext-brand">
           <div className="brand-logo-wrap">
             <svg viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
               <defs>
-                <linearGradient id="shieldGrad" x1="0%" y1="0%" x2="100%" y2="100%">
-                  <stop offset="0%" stopColor="#7b61ff" />
+                <linearGradient id="shieldGradPanel" x1="0%" y1="0%" x2="100%" y2="100%">
+                  <stop offset="0%"   stopColor="#7b61ff" />
                   <stop offset="100%" stopColor="#4ecdc4" />
                 </linearGradient>
               </defs>
               <path
                 d="M16 6L8 9V15C8 20.3 11.4 25.2 16 26.5C20.6 25.2 24 20.3 24 15V9L16 6Z"
-                stroke="url(#shieldGrad)"
+                stroke="url(#shieldGradPanel)"
                 strokeWidth="2"
                 strokeLinecap="round"
                 strokeLinejoin="round"
@@ -80,14 +109,16 @@ export const PopupPanel: React.FC<PopupPanelProps> = ({ state }) => {
             <div className="ext-brand-title">ShadowSense AI</div>
             <div className="ext-brand-status">
               <span className={`status-dot${isStreaming ? ' pulsing' : ''}`} />
-              <span>{isStreaming ? 'Scanning message stream...' : 'Active on Fiverr'}</span>
+              <span>
+                {isStreaming ? 'Scanning message stream…' : 'Active on Fiverr'}
+              </span>
             </div>
           </div>
         </div>
-        <div className="switch-toggle" />
+        <div className="switch-toggle" aria-label="Extension toggle" />
       </div>
 
-      {/* Gauge Card */}
+      {/* ─── Gauge Card ── */}
       <div
         className="gauge-card"
         style={{
@@ -103,26 +134,42 @@ export const PopupPanel: React.FC<PopupPanelProps> = ({ state }) => {
               <span className="gauge-score-large">
                 {isStreaming ? '--' : score}
               </span>
-              <span style={{ color: 'var(--color-text-tertiary)', fontSize: 12 }}>/ 100</span>
+              <span style={{ color: 'var(--color-text-tertiary)', fontSize: 12 }}>
+                / 100
+              </span>
             </div>
             <span className={isStreaming ? 'pill pill-purple' : getPillClass(level)}>
-              {isStreaming ? 'Orchestrating...' : getStatusLabel(level)}
+              {isStreaming ? 'Orchestrating…' : getStatusLabel(level)}
             </span>
           </div>
         </div>
+
+        {/* ─── DefenseNarrative — "Why this score?" below gauge ── */}
+        <DefenseNarrative
+          reasons={reasons}
+          level={level}
+          score={score}
+          isStreaming={isStreaming}
+          defaultExpanded={level === 'high-risk'}
+        />
       </div>
 
-      {/* Risk Factors */}
+      {/* ─── Risk Factors ── */}
       <RiskFactors reasons={reasons} level={level} isStreaming={isStreaming} />
 
-      {/* Agent Chips */}
+      {/* ─── Agent Chips ── */}
       <AgentChips agents={agents} />
 
-      {/* Suggested Response */}
+      {/* ─── Suggested Response ── */}
       <SafeResponse text={suggestedResponse} />
 
-      {/* Action Buttons */}
-      <ActionButtons level={level} />
+      {/* ─── Action Buttons ── */}
+      <ActionButtons
+        level={level}
+        score={score}
+        messageId={messageId}
+        onOverride={() => setOverlayDismissed(true)}
+      />
     </div>
   );
 };
