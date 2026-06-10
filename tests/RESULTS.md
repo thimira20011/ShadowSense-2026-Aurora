@@ -1,38 +1,38 @@
 # Test Results
 
-> **Last updated**: 2026-06-07 22:22  
-> **Mode**: Dry-run — awaiting live backend (M1)  
+> **Last updated**: 2026-06-08 22:53  
+> **Mode**: Live run  
 > **Scenarios**: 27
 
 | # | Scenario ID | Name | Expected Range | Actual Score | Status | Notes |
 |---|---|---|---|---|---|---|
-| 1 | `phishing_001` | Suspicious Payment Method Request | 0–39 | — | **PENDING** | Dry-run — awaiting live backend |
-| 2 | `malware_001` | Suspicious File Attachment | 0–39 | — | **PENDING** | Dry-run — awaiting live backend |
-| 3 | `generic_threat_003` | Urgency and Pressure Tactics | 0–39 | — | **PENDING** | Dry-run — awaiting live backend |
-| 4 | `identity_theft_004` | Information Harvesting | 0–39 | — | **PENDING** | Dry-run — awaiting live backend |
-| 5 | `fake_job_005` | Fake Remote Job with Bank Account Harvesting | 0–39 | — | **PENDING** | Dry-run — awaiting live backend |
-| 6 | `crypto_006` | Crypto Seed Phrase Theft via Investment Scam | 0–39 | — | **PENDING** | Dry-run — awaiting live backend |
-| 7 | `overpayment_007` | Fake Overpayment Refund Scam | 0–39 | — | **PENDING** | Dry-run — awaiting live backend |
-| 8 | `advance_fee_008` | Fake Background Check Fee Scam | 0–39 | — | **PENDING** | Dry-run — awaiting live backend |
-| 9 | `phishing_009` | Fake Fiverr Cashback Reward Phishing | 0–39 | — | **PENDING** | Dry-run — awaiting live backend |
-| 10 | `off_platform_010` | NDA Excuse to Move Off-Platform | 0–39 | — | **PENDING** | Dry-run — awaiting live backend |
-| 11 | `survey_phishing_011` | Fake Survey SSN Phishing | 0–39 | — | **PENDING** | Dry-run — awaiting live backend |
-| 12 | `wire_pii_012` | Wire Transfer PII Harvesting via Off-Platform Redirect | 0–39 | — | **PENDING** | Dry-run — awaiting live backend |
-| 13 | `influencer_013` | Fake Brand Collaboration Customs Fee Scam | 0–39 | — | **PENDING** | Dry-run — awaiting live backend |
-| 14 | `ip_fee_014` | Fake IP Rights Registration Advance Fee | 0–39 | — | **PENDING** | Dry-run — awaiting live backend |
-| 15 | `remote_access_015` | AnyDesk Remote Access via Fake Fiverr Support | 0–39 | — | **PENDING** | Dry-run — awaiting live backend |
-| 16 | `malware_016` | Trojan Disguised as Client Portal Viewer | 0–39 | — | **PENDING** | Dry-run — awaiting live backend |
-| 17 | `giftcard_017` | Gift Card Grooming Scam | 0–39 | — | **PENDING** | Dry-run — awaiting live backend |
-| 18 | `credential_theft_018` | WhatsApp Business Verification Badge Scam | 0–39 | — | **PENDING** | Dry-run — awaiting live backend |
-| 19 | `delivery_phishing_019` | Amazon Delivery Phishing with Fake Customs Fee | 0–39 | — | **PENDING** | Dry-run — awaiting live backend |
-| 20 | `free_work_020` | Unpaid Test Task Free Work Exploitation | 40–69 | — | **PENDING** | Dry-run — awaiting live backend |
-| 21 | `invoice_fraud_021` | Invoice Redirect Fraud with Tip Bait | 0–39 | — | **PENDING** | Dry-run — awaiting live backend |
-| 22 | `brand_impersonation_022` | OpenAI Brand Impersonation Credential Phishing | 0–39 | — | **PENDING** | Dry-run — awaiting live backend |
-| 23 | `malware_023` | Password-Protected Archive with Malicious Batch File | 0–39 | — | **PENDING** | Dry-run — awaiting live backend |
-| 24 | `off_platform_024` | WhatsApp Off-Platform Redirect via Travel Excuse | 0–39 | — | **PENDING** | Dry-run — awaiting live backend |
-| 25 | `legitimate_025` | Genuine Logo Design Enquiry | 70–100 | — | **PENDING** | Dry-run — awaiting live backend |
-| 26 | `borderline_026` | Pushy Deadline with Off-Platform Hint | 40–69 | — | **PENDING** | Dry-run — awaiting live backend |
-| 27 | `edge_case_027` | Long Unicode Mixed-Language Stress Test | 0–100 | — | **PENDING** | Dry-run — awaiting live backend |
+| 1 | `phishing_001` | Suspicious Payment Method Request | 0-39 | 63 | **FAIL** |  |
+| 2 | `malware_001` | Suspicious File Attachment | 0-39 | 95 | **FAIL** |  |
+| 3 | `generic_threat_003` | Urgency and Pressure Tactics | 0-39 | 59 | **FAIL** |  |
+| 4 | `identity_theft_004` | Information Harvesting | 0-39 | 77 | **FAIL** |  |
+| 5 | `fake_job_005` | Fake Remote Job with Bank Account Harvesting | 0-39 | 59 | **FAIL** |  |
+| 6 | `crypto_006` | Crypto Seed Phrase Theft via Investment Scam | 0-39 | 54 | **FAIL** |  |
+| 7 | `overpayment_007` | Fake Overpayment Refund Scam | 0-39 | 59 | **FAIL** |  |
+| 8 | `advance_fee_008` | Fake Background Check Fee Scam | 0-39 | 63 | **FAIL** |  |
+| 9 | `phishing_009` | Fake Fiverr Cashback Reward Phishing | 0-39 | 59 | **FAIL** |  |
+| 10 | `off_platform_010` | NDA Excuse to Move Off-Platform | 0-39 | 63 | **FAIL** |  |
+| 11 | `survey_phishing_011` | Fake Survey SSN Phishing | 0-39 | 59 | **FAIL** |  |
+| 12 | `wire_pii_012` | Wire Transfer PII Harvesting via Off-Platform Redirect | 0-39 | 59 | **FAIL** |  |
+| 13 | `influencer_013` | Fake Brand Collaboration Customs Fee Scam | 0-39 | 59 | **FAIL** |  |
+| 14 | `ip_fee_014` | Fake IP Rights Registration Advance Fee | 0-39 | 59 | **FAIL** |  |
+| 15 | `remote_access_015` | AnyDesk Remote Access via Fake Fiverr Support | 0-39 | 59 | **FAIL** |  |
+| 16 | `malware_016` | Trojan Disguised as Client Portal Viewer | 0-39 | 95 | **FAIL** |  |
+| 17 | `giftcard_017` | Gift Card Grooming Scam | 0-39 | 59 | **FAIL** |  |
+| 18 | `credential_theft_018` | WhatsApp Business Verification Badge Scam | 0-39 | 59 | **FAIL** |  |
+| 19 | `delivery_phishing_019` | Amazon Delivery Phishing with Fake Customs Fee | 0-39 | 59 | **FAIL** |  |
+| 20 | `free_work_020` | Unpaid Test Task Free Work Exploitation | 40-69 | 68 | **PASS** |  |
+| 21 | `invoice_fraud_021` | Invoice Redirect Fraud with Tip Bait | 0-39 | 59 | **FAIL** |  |
+| 22 | `brand_impersonation_022` | OpenAI Brand Impersonation Credential Phishing | 0-39 | 63 | **FAIL** |  |
+| 23 | `malware_023` | Password-Protected Archive with Malicious Batch File | 0-39 | 59 | **FAIL** |  |
+| 24 | `off_platform_024` | WhatsApp Off-Platform Redirect via Travel Excuse | 0-39 | 68 | **FAIL** |  |
+| 25 | `legitimate_025` | Genuine Logo Design Enquiry | 70-100 | 95 | **PASS** |  |
+| 26 | `borderline_026` | Pushy Deadline with Off-Platform Hint | 40-69 | 68 | **PASS** |  |
+| 27 | `edge_case_027` | Long Unicode Mixed-Language Stress Test | 0-100 | 52 | **PASS** |  |
 ---
 
 ## Intervention Tier Reference
