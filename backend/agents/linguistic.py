@@ -3,6 +3,7 @@ import time
 import json
 import logging
 import threading
+import unicodedata
 from typing import Dict, Any, List
 
 from groq import Groq
@@ -55,13 +56,51 @@ class LinguisticAgent:
             if key and "placeholder" not in str(key).lower():
                 self._gemini_clients.append(genai.Client(api_key=key))
             
+    # Maximum characters sent to the LLM.  Longer inputs are truncated to keep
+    # inference times well within the 5-second orchestrator timeout.
+    _MAX_TEXT_CHARS = 4_000
+
     def analyze(self, text: str) -> Dict[str, Any]:
-        """Analyze text for linguistic red flags using Groq API, fallback to Gemini."""
+        """Analyze text for linguistic red flags using Groq API, fallback to Gemini.
+
+        Edge-case handling (Week 4):
+        - Empty / whitespace-only text  → zero-risk result, no API call made.
+        - Unicode normalization (NFKC)  → handles emoji, Arabic, CJK, etc. safely.
+        - Very long messages (>4,000 ch) → truncated before API call; flag added.
+        """
         start_time = time.perf_counter()
-        
+
+        # ── Guard: empty text ───────────────────────────────────────────────
+        if not text or not text.strip():
+            logger.info("LinguisticAgent: empty text received — skipping analysis.")
+            return {
+                "patterns": [],
+                "urgency_score": 0.0,
+                "red_flags": [],
+                "confidence": 1.0,
+            }
+
+        # ── Unicode normalisation (NFKC) ────────────────────────────────────
+        # Converts visually identical characters to a canonical form so the LLM
+        # isn't confused by homoglyphs, zero-width spaces, or unusual encodings.
+        text = unicodedata.normalize("NFKC", text)
+
+        # ── Long-message truncation ─────────────────────────────────────────
+        truncated = False
+        if len(text) > self._MAX_TEXT_CHARS:
+            logger.warning(
+                "LinguisticAgent: message truncated from %d to %d chars.",
+                len(text), self._MAX_TEXT_CHARS,
+            )
+            text = text[: self._MAX_TEXT_CHARS]
+            truncated = True
+
         if self.is_mock:
             # Fallback mock logic for testing/development when API key is missing
             result = self._mock_analyze(text)
+            if truncated:
+                result["red_flags"].insert(0, "Message truncated — original exceeds 4,000 characters")
+                result["patterns"] = result["red_flags"]
             latency = time.perf_counter() - start_time
             logger.info(f"LinguisticAgent analyze latency (mock): {latency:.4f}s")
             return result
@@ -97,18 +136,21 @@ class LinguisticAgent:
             latency = time.perf_counter() - start_time
             logger.info(f"LinguisticAgent analyze latency (Groq): {latency:.4f}s (Model: {self.model})")
             
+            flags = parsed.get("red_flags", [])
+            if truncated:
+                flags.insert(0, "Message truncated — original exceeds 4,000 characters")
             return {
-                "patterns": parsed.get("red_flags", []),
+                "patterns": flags,
                 "urgency_score": float(parsed.get("urgency_score", 0.0)),
-                "red_flags": parsed.get("red_flags", []),
+                "red_flags": flags,
                 "confidence": float(parsed.get("confidence", 1.0))
             }
 
         except Exception as e:
             logger.error(f"Groq API error: {e}. Falling back to Gemini API.")
-            return self._gemini_analyze(text, start_time)
+            return self._gemini_analyze(text, start_time, truncated=truncated)
 
-    def _gemini_analyze(self, text: str, start_time: float) -> Dict[str, Any]:
+    def _gemini_analyze(self, text: str, start_time: float, truncated: bool = False) -> Dict[str, Any]:
         """Fallback method using Gemini API."""
         if not self._gemini_clients:
             logger.warning("No Gemini clients available for fallback. Falling back to mock analysis.")
@@ -138,17 +180,24 @@ class LinguisticAgent:
             latency = time.perf_counter() - start_time
             logger.info(f"LinguisticAgent analyze latency (Gemini fallback): {latency:.4f}s")
             
+            flags = parsed.get("red_flags", [])
+            if truncated:
+                flags.insert(0, "Message truncated — original exceeds 4,000 characters")
             return {
-                "patterns": parsed.get("red_flags", []),
+                "patterns": flags,
                 "urgency_score": float(parsed.get("urgency_score", 0.0)),
-                "red_flags": parsed.get("red_flags", []),
+                "red_flags": flags,
                 "confidence": float(parsed.get("confidence", 1.0))
             }
 
         except Exception as e:
             latency = time.perf_counter() - start_time
             logger.error(f"Gemini API fallback error: {e}. Falling back to rule-based mock analysis. Total latency: {latency:.4f}s")
-            return self._mock_analyze(text)
+            result = self._mock_analyze(text)
+            if truncated:
+                result["red_flags"].insert(0, "Message truncated — original exceeds 4,000 characters")
+                result["patterns"] = result["red_flags"]
+            return result
 
     def _build_prompt(self) -> str:
         return (

@@ -32,7 +32,11 @@ export interface SimulationState {
 }
 
 export function getThreatLevel(score: number): ThreatLevel {
-  if (score <= 39) return 'high-risk';
+  // Week 4 tuned thresholds — synced with backend ShieldAgent._classify()
+  // HIGH_RISK  0–29  (was 0–39)
+  // ADVISORY  30–69  (wider advisory zone)
+  // CLEAR     70–100
+  if (score <= 29) return 'high-risk';
   if (score <= 69) return 'advisory';
   return 'clear';
 }

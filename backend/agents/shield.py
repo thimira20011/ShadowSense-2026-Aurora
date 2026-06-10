@@ -247,13 +247,22 @@ class ShieldAgent:
 
     @staticmethod
     def _classify(score: int):
-        """Map Trust Score to (level, explanation) tuple."""
+        """Map Trust Score to (level, explanation) tuple.
+
+        Week 4 tuned thresholds (shifted from 40→30):
+          CLEAR     70–100 — No significant indicators detected.
+          ADVISORY  30–69  — Moderate risk; review before proceeding.
+          HIGH_RISK  0–29  — High-confidence scam patterns; block recommended.
+
+        Widening ADVISORY from [40,69] to [30,69] reduces false hard-blocks
+        on borderline conversations while keeping the block threshold tight.
+        """
         if score >= 70:
             return (
                 "CLEAR",
                 "Conversation appears safe. No significant scam indicators were detected.",
             )
-        if score >= 40:
+        if score >= 30:
             return (
                 "ADVISORY",
                 "Moderate risk signals detected. Review the reasons below before proceeding.",
