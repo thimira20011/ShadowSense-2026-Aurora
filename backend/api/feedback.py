@@ -12,12 +12,17 @@ When a user clicks "Override + Report":
   4.  If 3+ users have overridden the same pattern it is automatically
       promoted to benign status, granting a ``+20`` trust-score boost in
       future ShieldAgent analyses.
+
+Week 4 addition: every event is also appended to ``logs/feedback.jsonl``
+for offline analysis and debugging.
 """
 
 from __future__ import annotations
 
 import sys
+import json
 import logging
+import datetime
 from pathlib import Path
 from typing import Optional
 
@@ -42,6 +47,29 @@ except Exception as _import_err:
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/feedback", tags=["feedback"])
+
+# ---------------------------------------------------------------------------
+# JSONL logging helpers (Week 4)
+# ---------------------------------------------------------------------------
+
+_LOGS_DIR = Path(__file__).resolve().parent.parent.parent / "logs"
+_FEEDBACK_LOG = _LOGS_DIR / "feedback.jsonl"
+
+
+def _append_feedback_log(record: dict) -> None:
+    """Append a single feedback event as a JSON line to logs/feedback.jsonl.
+
+    Creates the file (and parent directory) if they do not yet exist.
+    Failures are logged as warnings — never crash the endpoint.
+    """
+    try:
+        _LOGS_DIR.mkdir(parents=True, exist_ok=True)
+        with _FEEDBACK_LOG.open("a", encoding="utf-8") as fh:
+            fh.write(json.dumps(record, ensure_ascii=False) + "\n")
+        logger.debug("feedback.jsonl ← %s", record)
+    except Exception as _log_err:
+        logger.warning("Could not write to feedback.jsonl: %s", _log_err)
+
 
 # ---------------------------------------------------------------------------
 # Schema
@@ -95,11 +123,25 @@ class OverrideResponse(BaseModel):
 
 @router.post("/", response_model=FeedbackResponse)
 async def submit_feedback(request: FeedbackRequest):
-    """Submit general user feedback (was the analysis accurate?)."""
+    """Submit general user feedback (was the analysis accurate?).
+
+    Week 4: All submissions are appended to ``logs/feedback.jsonl``.
+    """
     logger.info(
         "submit_feedback: analysis_id=%s  was_accurate=%s",
         request.analysis_id, request.was_accurate,
     )
+
+    # ── Week 4: JSONL log ────────────────────────────────────────────────
+    _append_feedback_log({
+        "timestamp":          datetime.datetime.now(datetime.timezone.utc).isoformat().replace("+00:00", "Z"),
+        "event":              "general_feedback",
+        "analysis_id":        request.analysis_id,
+        "action":             request.user_feedback,
+        "was_accurate":       request.was_accurate,
+        "additional_context": request.additional_context,
+    })
+
     # General feedback is logged; override-specific logic uses /override
     return FeedbackResponse(
         success=True,
@@ -115,6 +157,8 @@ async def submit_override(request: OverrideRequest):
     Stores the override in ChromaDB with ``{false_positive: true, trust_score: 22}``,
     increments the per-pattern counter, and auto-promotes the pattern to benign
     if ≥ 3 unique users have overridden it (granting a ``+20`` trust-score boost).
+
+    Week 4: Every override is also appended to ``logs/feedback.jsonl``.
     """
     if not _FEEDBACK_LOOP_AVAILABLE or process_override is None:
         logger.error("FeedbackLoop unavailable — ml-pipeline not importable.")
@@ -143,6 +187,20 @@ async def submit_override(request: OverrideRequest):
     except Exception as exc:
         logger.exception("process_override raised an unexpected error: %s", exc)
         raise HTTPException(status_code=500, detail="Internal feedback-loop error.")
+
+    # ── Week 4: JSONL log ────────────────────────────────────────────────
+    _append_feedback_log({
+        "timestamp":       datetime.datetime.now(datetime.timezone.utc).isoformat().replace("+00:00", "Z"),
+        "event":           "override",
+        "analysis_id":     result.analysis_id,
+        "pattern_key":     result.pattern_key,
+        "action":          "override",
+        "trust_score":     request.trust_score,
+        "override_count":  result.override_count,
+        "marked_benign":   result.marked_benign,
+        "trust_score_boost": result.trust_score_boost,
+        "user_id":         request.user_id or "anonymous",
+    })
 
     return OverrideResponse(
         success           = result.success,
