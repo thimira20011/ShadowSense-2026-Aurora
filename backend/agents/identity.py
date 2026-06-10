@@ -84,8 +84,22 @@ class IdentityAgent:
                 - identity_risk   (float)   — 0–100 risk score
                 - anomalies       (list)    — detected red-flag descriptions
                 - confidence      (float)   — model confidence 0.0–1.0
+
+        Edge-case handling (Week 4):
+            - Empty dict / None  → moderate risk (30) returned immediately.
+              An absent profile is itself a mild signal, never zero-risk.
         """
         start = time.perf_counter()
+
+        # ── Guard: no profile data at all ───────────────────────────────────
+        if not identity_data:
+            logger.info("IdentityAgent: empty identity_data received — returning moderate risk.")
+            return {
+                "verified":      False,
+                "identity_risk": 30.0,
+                "anomalies":     ["No profile data provided — identity could not be assessed"],
+                "confidence":    0.5,
+            }
 
         if self.is_mock:
             result = self._mock_verify(identity_data)
