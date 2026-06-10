@@ -295,14 +295,16 @@ h1 {
   gap: 16px;
 }
 .gauge-svg-container {
-  width: 68px;
-  height: 68px;
+  width: 72px;
+  height: 72px;
   position: relative;
+  flex-shrink: 0;
 }
 .gauge-svg-container svg {
   width: 100%;
   height: 100%;
   transform: rotate(-90deg);
+  overflow: visible; /* allow drop-shadow filter to bleed outside bounds */
 }
 .gauge-text {
   position: absolute;
@@ -310,8 +312,11 @@ h1 {
   left: 50%;
   transform: translate(-50%, -50%);
   font-family: var(--font-mono);
-  font-size: 18px;
+  font-size: 19px;
   font-weight: 700;
+  letter-spacing: -0.03em;
+  pointer-events: none;
+  transition: color 0.3s ease;
 }
 .gauge-info {
   flex: 1;
@@ -798,13 +803,19 @@ h1 {
   padding: 10px 12px;
   background: linear-gradient(135deg, #fef9ec 0%, #fdf3d7 100%);
   border-top: 2.5px solid #ef9f27;
-  animation: advisorySlideDown 0.28s cubic-bezier(0.4, 0, 0.2, 1) both;
+  animation: advisorySlideDown 0.30s cubic-bezier(0.34, 1.4, 0.64, 1) both;
   overflow: hidden;
 }
 
+@media (prefers-color-scheme: dark) {
+  .alert-overlay-advisory {
+    background: linear-gradient(135deg, var(--color-warn-bg) 0%, #3a2908 100%);
+  }
+}
+
 @keyframes advisorySlideDown {
-  from { opacity: 0; transform: translateY(-10px); max-height: 0; }
-  to   { opacity: 1; transform: translateY(0);     max-height: 120px; }
+  from { opacity: 0; transform: translateY(-8px) scale(0.98); }
+  to   { opacity: 1; transform: translateY(0)    scale(1);    }
 }
 
 .advisory-accent-bar {
@@ -873,6 +884,12 @@ h1 {
   z-index: 20;
   pointer-events: all;
   border-radius: inherit;
+  animation: aoBackdropFade 0.2s ease-out both;
+}
+
+@keyframes aoBackdropFade {
+  from { opacity: 0; }
+  to   { opacity: 1; }
 }
 
 .ao-modal {
@@ -880,7 +897,7 @@ h1 {
   bottom: 0;
   left: 0;
   right: 0;
-  background: #ffffff;
+  background: var(--color-bg-surface);
   border-top: 3px solid var(--color-risk-primary);
   border-radius: 0 0 14px 14px;
   padding: 22px 18px 20px;
@@ -890,13 +907,14 @@ h1 {
   align-items: center;
   text-align: center;
   animation: aoModalRise 0.35s cubic-bezier(0.34, 1.4, 0.64, 1) both;
+  animation-delay: 0.08s;
   box-shadow:
-    0 -8px 32px rgba(226, 75, 74, 0.15),
-    0 -2px 8px  rgba(226, 75, 74, 0.08);
+    0 -8px 32px rgba(226, 75, 74, 0.18),
+    0 -2px 8px  rgba(226, 75, 74, 0.10);
 }
 
 @keyframes aoModalRise {
-  from { opacity: 0; transform: translateY(24px); }
+  from { opacity: 0; transform: translateY(28px); }
   to   { opacity: 1; transform: translateY(0);    }
 }
 
@@ -1083,6 +1101,65 @@ h1 {
   to { transform: rotate(360deg); }
 }
 
+/* Retry button — appears when POST fails */
+.ao-btn-retry {
+  font-size: 10px;
+  padding: 5px 9px;
+  background: transparent;
+  color: var(--color-risk-text);
+  border: 1px solid rgba(226, 75, 74, 0.45);
+  border-radius: 7px;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-weight: 600;
+  cursor: pointer;
+  font-family: var(--font-sans);
+  transition: background 0.15s ease;
+}
+.ao-btn-retry:hover { background: var(--color-risk-bg); }
+
+/* Inline retry link inside modal error message */
+.ao-inline-retry {
+  background: none;
+  border: none;
+  color: var(--color-risk-text);
+  font-weight: 700;
+  text-decoration: underline;
+  cursor: pointer;
+  font-family: var(--font-sans);
+  font-size: inherit;
+  padding: 0;
+}
+
+/* Feedback error banner */
+.ao-feedback-error {
+  font-size: 10px;
+  color: var(--color-risk-text);
+  background: var(--color-risk-bg);
+  border: 1px solid var(--color-risk-border);
+  border-radius: 6px;
+  padding: 5px 8px;
+  margin-top: 4px;
+  line-height: 1.4;
+  text-align: left;
+  width: 100%;
+}
+
+/* Template expand toggle */
+.template-expand-btn {
+  background: none;
+  border: none;
+  color: var(--color-accent);
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+  font-family: var(--font-sans);
+  padding: 0;
+  margin-left: 2px;
+}
+.template-expand-btn:hover { text-decoration: underline; }
+
 /* ════════════════════════════════════════════════════════════
    DefenseNarrative — Collapsible "Why this score?"
    ════════════════════════════════════════════════════════════ */
@@ -1228,3 +1305,132 @@ h1 {
   line-height: 1.4;
 }
 
+/* ════════════════════════════════════════════════════════════
+   SafeResponseTemplates — 3-card click-to-copy grid
+   ════════════════════════════════════════════════════════════ */
+
+.ss-templates-box {
+  padding: 12px 16px 14px;
+  background: var(--color-bg-base);
+  border-top: 1px solid var(--color-border-secondary);
+  animation: fadeInFactor 0.3s ease both;
+}
+
+.ss-templates-box--risk {
+  border-top-color: rgba(226, 75, 74, 0.2);
+  background: linear-gradient(135deg, var(--color-risk-bg) 0%, var(--color-bg-base) 100%);
+}
+
+.ss-templates-box--advisory {
+  border-top-color: rgba(239, 159, 39, 0.2);
+  background: linear-gradient(135deg, var(--color-warn-bg) 0%, var(--color-bg-base) 100%);
+}
+
+.ss-templates-header {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  margin-bottom: 8px;
+}
+
+.ss-templates-label {
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--color-text-secondary);
+  flex: 1;
+}
+
+.ss-templates-hint {
+  font-size: 9px;
+  color: var(--color-text-tertiary);
+  font-weight: 500;
+}
+
+.ss-templates-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.ss-template-card {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 8px;
+  background: var(--color-bg-surface);
+  border: 1px solid var(--color-border-primary);
+  border-radius: 8px;
+  padding: 8px 10px;
+  animation: fadeInFactor 0.3s ease both;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.ss-template-card:hover {
+  border-color: var(--color-accent-light);
+  box-shadow: 0 0 0 2px var(--color-accent-bg);
+}
+
+.ss-template-text {
+  font-size: 11px;
+  color: var(--color-text-secondary);
+  line-height: 1.5;
+  flex: 1;
+  min-width: 0;
+}
+
+.ss-copy-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--color-accent);
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 5px;
+  padding: 3px 6px;
+  cursor: pointer;
+  white-space: nowrap;
+  flex-shrink: 0;
+  font-family: var(--font-sans);
+  transition: background 0.12s ease, color 0.12s ease, border-color 0.12s ease;
+}
+
+.ss-copy-btn:hover {
+  background: var(--color-accent-bg);
+  border-color: var(--color-accent-light);
+}
+
+.ss-copy-btn--copied {
+  color: var(--color-clear-primary);
+  background: var(--color-clear-bg);
+  border-color: var(--color-clear-border);
+  animation: copiedFlash 1.5s ease forwards;
+}
+
+/* ════════════════════════════════════════════════════════════
+   Responsive: 1366px and 1920px+ screen support
+   ════════════════════════════════════════════════════════════ */
+
+@media (min-width: 1440px) {
+  .container {
+    max-width: 1400px;
+  }
+  .preview-grid {
+    grid-template-columns: 380px 1fr;
+  }
+}
+
+@media (max-width: 1366px) {
+  body {
+    padding: 16px;
+  }
+  .preview-grid {
+    gap: 16px;
+  }
+  .phone-mockup {
+    max-width: min(680px, 100%);
+  }
+}
