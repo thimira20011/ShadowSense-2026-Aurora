@@ -53,10 +53,13 @@ interface StoragePayload {
 // ─── Constants ─────────────────────────────────────────────────────────────
 
 const STORAGE_KEY = "shadowsense_fiverr_messages";
+const CACHED_SCORE_KEY = "shadowsense_cached_score";
 /** Maximum messages stored per conversation before the oldest are evicted */
 const MAX_MESSAGES_PER_CONVO = 500;
 /** Debounce window (ms) – prevents thrashing on rapid DOM mutations */
 const DEBOUNCE_MS = 300;
+/** Timeout before we fall back to cached score (ms) */
+const NOTIFY_TIMEOUT_MS = 3000;
 
 // ─── Selector catalogue ────────────────────────────────────────────────────
 /**
@@ -522,15 +525,249 @@ class FiverrChatObserver {
   // ── Messaging ────────────────────────────────────────────────────────────
 
   private notifyBackground(messages: ChatMessage[]): void {
+    // Save a cached score so we can show it offline
+    this.saveLastKnownScore();
+
+    const timeoutId = setTimeout(() => {
+      // Background didn't respond in time — show offline badge
+      this.showOfflineBadge();
+    }, NOTIFY_TIMEOUT_MS);
+
     try {
-      chrome.runtime.sendMessage({
-        type: "FIVERR_MESSAGES_CAPTURED",
-        payload: messages,
-      });
+      chrome.runtime.sendMessage(
+        { type: "FIVERR_MESSAGES_CAPTURED", payload: messages },
+        (response) => {
+          clearTimeout(timeoutId);
+          if (chrome.runtime.lastError) {
+            console.debug("[ShadowSense] Background response error:", chrome.runtime.lastError);
+            this.showOfflineBadge();
+            return;
+          }
+          // If response indicates high-risk, inject response templates
+          if (response?.level === 'high-risk') {
+            this.injectResponseTemplates([
+              "Thanks, but I need to verify this request with Fiverr support first.",
+              "I'm only able to accept files through the official Fiverr platform. Please use the attachment feature here.",
+              "I prefer to keep all communication within Fiverr to protect both of us. Let's continue here.",
+            ]);
+          }
+        }
+      );
     } catch (err) {
-      // Background SW may not be running; that's fine for passive capture
+      clearTimeout(timeoutId);
       console.debug("[ShadowSense] Could not notify background:", err);
+      this.showOfflineBadge();
     }
+  }
+
+  /**
+   * Persist the last known analysis result to chrome.storage.local
+   * so it can be shown when the backend is unreachable.
+   */
+  private saveLastKnownScore(): void {
+    chrome.storage.local.get([CACHED_SCORE_KEY], (result: any) => {
+      // keep whatever was already stored; only update after a real analysis result comes back
+      console.debug("[ShadowSense] Cached score available:", result[CACHED_SCORE_KEY]);
+    });
+  }
+
+  /**
+   * Show a non-blocking "offline — cached score" badge in the chat area.
+   * Attaches to the first suitable anchor; removes itself after 6 s.
+   */
+  private showOfflineBadge(): void {
+    const BADGE_ID = 'ss-offline-badge';
+    if (document.getElementById(BADGE_ID)) return; // already shown
+
+    chrome.storage.local.get([CACHED_SCORE_KEY], (result: any) => {
+      const cached = result[CACHED_SCORE_KEY];
+      const scoreText = cached != null ? `cached score: ${cached}` : 'no cached data';
+
+      const badge = document.createElement('div');
+      badge.id = BADGE_ID;
+      badge.setAttribute('role', 'status');
+      badge.setAttribute('aria-live', 'polite');
+      badge.style.cssText = [
+        'position:fixed', 'bottom:80px', 'right:16px', 'z-index:2147483647',
+        'background:#27272a', 'color:#fafafa', 'font-size:11px',
+        'font-family:system-ui,sans-serif', 'font-weight:500',
+        'padding:7px 12px', 'border-radius:8px',
+        'box-shadow:0 4px 16px rgba(0,0,0,0.3)',
+        'display:flex', 'align-items:center', 'gap:6px',
+        'opacity:0', 'transition:opacity 0.2s ease',
+        'pointer-events:none',
+      ].join(';');
+      badge.innerHTML = `⚠️ <span>Offline — showing ${scoreText}</span>`;
+
+      document.body.appendChild(badge);
+      requestAnimationFrame(() => { badge.style.opacity = '1'; });
+      setTimeout(() => {
+        badge.style.opacity = '0';
+        setTimeout(() => badge.remove(), 250);
+      }, 6000);
+    });
+  }
+
+  /**
+   * Inject 3 click-to-copy response template chips below the Fiverr chat input.
+   * Idempotent — removes any existing injection before re-injecting.
+   * Auto-removes when the user starts typing or after 30 s.
+   */
+  private injectResponseTemplates(templates: string[]): void {
+    const CONTAINER_ID = 'ss-response-templates';
+
+    // Remove any existing injection first
+    document.getElementById(CONTAINER_ID)?.remove();
+
+    // Find the chat input using stable ARIA selectors
+    const INPUT_SELECTORS = [
+      '[data-testid*="message-input"]',
+      '[data-testid*="chat-input"]',
+      '[aria-label*="message" i][contenteditable]',
+      '[role="textbox"]',
+      'textarea[placeholder*="message" i]',
+      'textarea[placeholder*="reply" i]',
+      'textarea[placeholder*="write" i]',
+      'div[contenteditable="true"]',
+    ] as const;
+
+    let inputEl: Element | null = null;
+    for (const sel of INPUT_SELECTORS) {
+      try {
+        inputEl = document.querySelector(sel);
+        if (inputEl) break;
+      } catch { /* ignore */ }
+    }
+
+    if (!inputEl) {
+      console.debug('[ShadowSense] Chat input not found — skipping template injection');
+      return;
+    }
+
+    // Build container
+    const container = document.createElement('div');
+    container.id = CONTAINER_ID;
+    container.setAttribute('role', 'region');
+    container.setAttribute('aria-label', 'ShadowSense — Suggested safe responses');
+    container.style.cssText = [
+      'display:flex', 'flex-direction:column', 'gap:6px',
+      'padding:8px 12px', 'margin-top:4px',
+      'background:linear-gradient(135deg,#fcebeb,#fafafa)',
+      'border-top:2px solid #e24b4a',
+      'animation:ss-tmpl-in 0.25s ease both',
+      'font-family:system-ui,sans-serif',
+    ].join(';');
+
+    // Inject animation keyframe if not present
+    if (!document.getElementById('ss-tmpl-style')) {
+      const style = document.createElement('style');
+      style.id = 'ss-tmpl-style';
+      style.textContent = `
+        @keyframes ss-tmpl-in {
+          from { opacity:0; transform:translateY(-6px); }
+          to   { opacity:1; transform:translateY(0); }
+        }
+        @keyframes ss-copied {
+          0%   { background:#e1f5ee; }
+          100% { background:transparent; }
+        }
+        #ss-response-templates .ss-chip {
+          display:flex; align-items:flex-start; justify-content:space-between;
+          gap:8px; background:#fff; border:1px solid #e4e4e7;
+          border-radius:8px; padding:8px 10px;
+          transition:border-color 0.15s;
+        }
+        #ss-response-templates .ss-chip:hover { border-color:#7b61ff; }
+        #ss-response-templates .ss-chip-text {
+          font-size:11px; color:#52525b; line-height:1.5; flex:1; min-width:0;
+        }
+        #ss-response-templates .ss-chip-copy {
+          font-size:10px; font-weight:600; color:#7f56d9;
+          background:transparent; border:1px solid transparent;
+          border-radius:5px; padding:3px 7px; cursor:pointer;
+          white-space:nowrap; flex-shrink:0;
+          transition:background 0.12s,color 0.12s;
+        }
+        #ss-response-templates .ss-chip-copy:hover {
+          background:#eeedfe; border-color:#7b61ff;
+        }
+        #ss-response-templates .ss-chip-copy.copied {
+          color:#0f6e56; background:#e1f5ee; border-color:#1d9e7555;
+        }
+        #ss-header-row {
+          display:flex; justify-content:space-between; align-items:center;
+          font-size:9px; font-weight:700; text-transform:uppercase;
+          letter-spacing:0.06em; color:#a32d2d;
+        }
+        #ss-dismiss-btn {
+          background:none; border:none; cursor:pointer;
+          font-size:11px; color:#a1a1aa; padding:0;
+          font-family:system-ui,sans-serif;
+        }
+      `;
+      document.head.appendChild(style);
+    }
+
+    // Header row
+    const headerRow = document.createElement('div');
+    headerRow.id = 'ss-header-row';
+    const headerLabel = document.createElement('span');
+    headerLabel.textContent = '🛡 ShadowSense — Shield Responses';
+    const dismissBtn = document.createElement('button');
+    dismissBtn.id = 'ss-dismiss-btn';
+    dismissBtn.textContent = '✕ Dismiss';
+    dismissBtn.onclick = () => container.remove();
+    headerRow.appendChild(headerLabel);
+    headerRow.appendChild(dismissBtn);
+    container.appendChild(headerRow);
+
+    // Template chips
+    templates.forEach((text) => {
+      const chip = document.createElement('div');
+      chip.className = 'ss-chip';
+
+      const label = document.createElement('span');
+      label.className = 'ss-chip-text';
+      label.textContent = text;
+
+      const copyBtn = document.createElement('button');
+      copyBtn.className = 'ss-chip-copy';
+      copyBtn.textContent = 'Copy';
+      copyBtn.setAttribute('aria-label', 'Copy response to clipboard');
+      copyBtn.onclick = () => {
+        navigator.clipboard.writeText(text).catch(() => {
+          const el = document.createElement('textarea');
+          el.value = text;
+          document.body.appendChild(el);
+          el.select();
+          document.execCommand('copy');
+          document.body.removeChild(el);
+        });
+        copyBtn.textContent = '✓ Copied!';
+        copyBtn.classList.add('copied');
+        setTimeout(() => {
+          copyBtn.textContent = 'Copy';
+          copyBtn.classList.remove('copied');
+        }, 1500);
+      };
+
+      chip.appendChild(label);
+      chip.appendChild(copyBtn);
+      container.appendChild(chip);
+    });
+
+    // Insert after the input element
+    inputEl.parentElement?.insertBefore(container, inputEl.nextSibling) ||
+      inputEl.parentElement?.appendChild(container);
+
+    // Auto-remove when user starts typing
+    const onInput = () => { container.remove(); inputEl!.removeEventListener('input', onInput); };
+    inputEl.addEventListener('input', onInput);
+
+    // Auto-remove after 30 s
+    setTimeout(() => container.remove(), 30_000);
+
+    console.log('[ShadowSense] Response templates injected below chat input.');
   }
 }
 

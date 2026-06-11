@@ -10,15 +10,20 @@
  *
  * Override + Report feedback is POSTed to /api/feedback with:
  *   { action: "override" | "false_positive", message_id, trust_score, timestamp }
+ *
+ * Bug fixes applied:
+ *   - Retry button appears when feedback POST fails
+ *   - Escape key dismisses the modal (keyboard accessibility)
  */
 
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useEffect } from 'react';
 import {
   IconShieldOff,
   IconAlertTriangle,
   IconX,
   IconSend,
   IconFlag,
+  IconRefresh,
 } from '@tabler/icons-react';
 import type { ThreatLevel } from '../types';
 
@@ -44,27 +49,22 @@ export interface AlertOverlayProps {
 const BACKEND_BASE = 'http://127.0.0.1:8000';
 
 async function postFeedback(payload: OverridePayload): Promise<void> {
-  try {
-    const res = await fetch(`${BACKEND_BASE}/api/feedback`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        analysis_id: payload.message_id,
-        user_feedback: payload.action,
-        was_accurate: false,
-        additional_context: {
-          action: payload.action,
-          message_id: payload.message_id,
-          trust_score: payload.trust_score,
-          timestamp: payload.timestamp,
-        },
-      }),
-    });
-    console.info('[ShadowSense] ✓ Feedback received by backend — status', res.status, payload);
-  } catch (err) {
-    // Graceful offline handling — log only, never crash
-    console.warn('[ShadowSense] Feedback POST failed (offline?):', err);
-  }
+  const res = await fetch(`${BACKEND_BASE}/api/feedback`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      analysis_id: payload.message_id,
+      user_feedback: payload.action,
+      was_accurate: false,
+      additional_context: {
+        action: payload.action,
+        message_id: payload.message_id,
+        trust_score: payload.trust_score,
+        timestamp: payload.timestamp,
+      },
+    }),
+  });
+  console.info('[ShadowSense] ✓ Feedback received by backend — status', res.status, payload);
 }
 
 // ─── Advisory Banner (score 40–69) ────────────────────────────────────────────
@@ -75,22 +75,30 @@ const AdvisoryBanner: React.FC<{
   onDismiss: () => void;
   onFeedbackSent: (p: OverridePayload) => void;
 }> = ({ score, messageId, onDismiss, onFeedbackSent }) => {
-  const [sending, setSending] = useState(false);
-  const [done, setDone] = useState(false);
+  const [sending, setSending]   = useState(false);
+  const [done, setDone]         = useState(false);
+  const [hasFailed, setFailed]  = useState(false);
 
   const handleFalsePositive = useCallback(async () => {
     setSending(true);
+    setFailed(false);
     const payload: OverridePayload = {
       action: 'false_positive',
       message_id: messageId,
       trust_score: score,
       timestamp: new Date().toISOString(),
     };
-    await postFeedback(payload);
-    onFeedbackSent(payload);
-    setSending(false);
-    setDone(true);
-    setTimeout(onDismiss, 600);
+    try {
+      await postFeedback(payload);
+      onFeedbackSent(payload);
+      setDone(true);
+      setTimeout(onDismiss, 600);
+    } catch (err) {
+      console.warn('[ShadowSense] Feedback POST failed (offline?):', err);
+      setFailed(true);
+    } finally {
+      setSending(false);
+    }
   }, [score, messageId, onDismiss, onFeedbackSent]);
 
   if (done) return null;
@@ -116,27 +124,44 @@ const AdvisoryBanner: React.FC<{
         <p className="advisory-message">
           This conversation shows moderate risk signals
         </p>
+        {hasFailed && (
+          <p className="ao-feedback-error" role="alert">
+            ⚠ Feedback failed — no server connection
+          </p>
+        )}
       </div>
 
       {/* Actions */}
       <div className="advisory-actions">
-        <button
-          id="btn-report-false-positive"
-          className="ao-btn ao-btn-ghost"
-          onClick={handleFalsePositive}
-          disabled={sending}
-          aria-label="Report as false positive"
-          title="Report False Positive"
-        >
-          {sending ? (
-            <span className="ao-spinner" aria-hidden="true">⟳</span>
-          ) : (
-            <>
-              <IconFlag size={11} strokeWidth={2} />
-              <span>Report False Positive</span>
-            </>
-          )}
-        </button>
+        {hasFailed ? (
+          <button
+            id="btn-advisory-retry"
+            className="ao-btn ao-btn-retry"
+            onClick={handleFalsePositive}
+            aria-label="Retry sending feedback"
+          >
+            <IconRefresh size={11} strokeWidth={2} />
+            <span>Retry</span>
+          </button>
+        ) : (
+          <button
+            id="btn-report-false-positive"
+            className="ao-btn ao-btn-ghost"
+            onClick={handleFalsePositive}
+            disabled={sending}
+            aria-label="Report as false positive"
+            title="Report False Positive"
+          >
+            {sending ? (
+              <span className="ao-spinner" aria-hidden="true">⟳</span>
+            ) : (
+              <>
+                <IconFlag size={11} strokeWidth={2} />
+                <span>Report False Positive</span>
+              </>
+            )}
+          </button>
+        )}
 
         <button
           id="btn-advisory-dismiss"
@@ -159,29 +184,44 @@ const HighRiskModal: React.FC<{
   onDismiss: () => void;
   onFeedbackSent: (p: OverridePayload) => void;
 }> = ({ score, messageId, onDismiss, onFeedbackSent }) => {
-  const [sending, setSending] = useState(false);
+  const [sending, setSending]     = useState(false);
   const [overridden, setOverridden] = useState(false);
+  const [hasFailed, setFailed]    = useState(false);
+
+  // Escape key dismisses the modal
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onDismiss();
+    };
+    document.addEventListener('keydown', handleKeyDown);
+    return () => document.removeEventListener('keydown', handleKeyDown);
+  }, [onDismiss]);
 
   const handleOverride = useCallback(async () => {
     setSending(true);
+    setFailed(false);
     const payload: OverridePayload = {
       action: 'override',
       message_id: messageId,
       trust_score: score,
       timestamp: new Date().toISOString(),
     };
-    // Log action to console per spec
     console.log('[ShadowSense] Override action logged:', {
       action: 'override',
       message_id: messageId,
       trust_score: score,
     });
-    await postFeedback(payload);
-    onFeedbackSent(payload);
-    setSending(false);
-    setOverridden(true);
-    // Dismiss after short confirmation flash
-    setTimeout(onDismiss, 500);
+    try {
+      await postFeedback(payload);
+      onFeedbackSent(payload);
+      setOverridden(true);
+      setTimeout(onDismiss, 500);
+    } catch (err) {
+      console.warn('[ShadowSense] Override POST failed (offline?):', err);
+      setFailed(true);
+    } finally {
+      setSending(false);
+    }
   }, [score, messageId, onDismiss, onFeedbackSent]);
 
   if (overridden) return null;
@@ -227,26 +267,42 @@ const HighRiskModal: React.FC<{
           <span className="ao-modal-score-label">Trust Score</span>
         </div>
 
+        {/* Feedback error message + retry */}
+        {hasFailed && (
+          <p className="ao-feedback-error" role="alert">
+            ⚠ Server unreachable — feedback not sent.{' '}
+            <button
+              className="ao-inline-retry"
+              onClick={handleOverride}
+              aria-label="Retry feedback submission"
+            >
+              Retry
+            </button>
+          </p>
+        )}
+
         {/* Primary CTA */}
-        <button
-          id="btn-override-continue"
-          className="ao-btn ao-btn-override"
-          onClick={handleOverride}
-          disabled={sending}
-          aria-busy={sending}
-        >
-          {sending ? (
-            <>
-              <span className="ao-spinner" aria-hidden="true">⟳</span>
-              <span>Sending feedback…</span>
-            </>
-          ) : (
-            <>
-              <IconSend size={13} strokeWidth={2} />
-              <span>Override + Continue</span>
-            </>
-          )}
-        </button>
+        {!hasFailed && (
+          <button
+            id="btn-override-continue"
+            className="ao-btn ao-btn-override"
+            onClick={handleOverride}
+            disabled={sending}
+            aria-busy={sending}
+          >
+            {sending ? (
+              <>
+                <span className="ao-spinner" aria-hidden="true">⟳</span>
+                <span>Sending feedback…</span>
+              </>
+            ) : (
+              <>
+                <IconSend size={13} strokeWidth={2} />
+                <span>Override + Continue</span>
+              </>
+            )}
+          </button>
+        )}
 
         <p className="ao-modal-disclaimer" role="note">
           Clicking Override logs this decision to the ShadowSense feedback system

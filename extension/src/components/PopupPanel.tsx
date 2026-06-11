@@ -1,13 +1,14 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { TrustGauge } from './TrustGauge';
 import { AgentChips } from './AgentChips';
 import { RiskFactors } from './RiskFactors';
 import { SafeResponse } from './SafeResponse';
+import { SafeResponseTemplates } from './SafeResponseTemplates';
 import { ActionButtons } from './ActionButtons';
 import { AlertOverlay } from './AlertOverlay';
 import { DefenseNarrative } from './DefenseNarrative';
 import type { SimulationState } from '../types';
-import { getStatusLabel } from '../types';
+import { getStatusLabel, getSuggestedTemplates } from '../types';
 import type { OverridePayload } from './AlertOverlay';
 
 interface PopupPanelProps {
@@ -17,9 +18,9 @@ interface PopupPanelProps {
 
 function getGaugeCardBg(level: string): string {
   switch (level) {
-    case 'high-risk': return '#fff5f5';
-    case 'advisory':  return '#fffbf0';
-    case 'clear':     return '#f0fdf8';
+    case 'high-risk': return 'var(--color-risk-bg)';
+    case 'advisory':  return 'var(--color-warn-bg)';
+    case 'clear':     return 'var(--color-clear-bg)';
     default:          return 'transparent';
   }
 }
@@ -42,18 +43,61 @@ function getBorderColor(level: string): string {
   }
 }
 
+// ─── Storage helpers (session-scoped dismiss persistence) ─────────────────────
+
+const DISMISSED_KEY = 'ss_dismissed_overlays';
+
+function isDismissedInSession(messageId: string): boolean {
+  try {
+    const raw = sessionStorage.getItem(DISMISSED_KEY);
+    const set: string[] = raw ? JSON.parse(raw) : [];
+    return set.includes(messageId);
+  } catch {
+    return false;
+  }
+}
+
+function markDismissedInSession(messageId: string): void {
+  try {
+    const raw = sessionStorage.getItem(DISMISSED_KEY);
+    const set: string[] = raw ? JSON.parse(raw) : [];
+    if (!set.includes(messageId)) {
+      set.push(messageId);
+      sessionStorage.setItem(DISMISSED_KEY, JSON.stringify(set));
+    }
+  } catch {
+    // sessionStorage unavailable in some extension contexts — fail silently
+  }
+}
+
+// ─── Component ────────────────────────────────────────────────────────────────
+
 export const PopupPanel: React.FC<PopupPanelProps> = ({
   state,
   messageId = 'fiverr-msg-001',
 }) => {
   const { score, level, agents, reasons, suggestedResponse, isStreaming } = state;
 
-  /** When overlay is dismissed (override / false-positive), unlock normal UI */
-  const [overlayDismissed, setOverlayDismissed] = useState(false);
+  // Persist dismiss so reopening the popup doesn't re-show the overlay for the same message
+  const [overlayDismissed, setOverlayDismissed] = useState(
+    () => isDismissedInSession(messageId)
+  );
+
+  // Re-evaluate when messageId changes (new message → show overlay again)
+  useEffect(() => {
+    setOverlayDismissed(isDismissedInSession(messageId));
+  }, [messageId]);
+
+  const handleDismiss = () => {
+    markDismissedInSession(messageId);
+    setOverlayDismissed(true);
+  };
 
   const handleFeedbackSent = (payload: OverridePayload) => {
     console.log('[ShadowSense] PopupPanel ← feedback event:', payload);
   };
+
+  const templates = getSuggestedTemplates(level);
 
   return (
     <div
@@ -73,7 +117,7 @@ export const PopupPanel: React.FC<PopupPanelProps> = ({
           score={score}
           level={level}
           messageId={messageId}
-          onDismiss={() => setOverlayDismissed(true)}
+          onDismiss={handleDismiss}
           onFeedbackSent={handleFeedbackSent}
         />
       )}
@@ -160,15 +204,20 @@ export const PopupPanel: React.FC<PopupPanelProps> = ({
       {/* ─── Agent Chips ── */}
       <AgentChips agents={agents} />
 
-      {/* ─── Suggested Response ── */}
+      {/* ─── Suggested Response (single) ── */}
       <SafeResponse text={suggestedResponse} />
+
+      {/* ─── Response Templates (3-card grid, high-risk only) ── */}
+      {!isStreaming && templates.length > 0 && (
+        <SafeResponseTemplates templates={templates} level={level} />
+      )}
 
       {/* ─── Action Buttons ── */}
       <ActionButtons
         level={level}
         score={score}
         messageId={messageId}
-        onOverride={() => setOverlayDismissed(true)}
+        onOverride={() => handleDismiss()}
       />
     </div>
   );

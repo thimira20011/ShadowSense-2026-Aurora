@@ -51,6 +51,18 @@ export function useSimulation(initialScore = 22) {
   const runLiveStream = useCallback(() => {
     cancelSimulation();
 
+    // Safety watchdog: if streaming is still active after 5s, force-resolve
+    // to prevent the gauge from getting stuck in loading state.
+    const watchdogRef = { id: null as ReturnType<typeof setTimeout> | null };
+    watchdogRef.id = setTimeout(() => {
+      console.warn('[ShadowSense] Stream watchdog fired — force-resolving stuck stream');
+      setState(buildState(50)); // advisory default
+    }, 5000);
+
+    const clearWatchdog = () => {
+      if (watchdogRef.id) { clearTimeout(watchdogRef.id); watchdogRef.id = null; }
+    };
+
     // Initial streaming state
     setState({
       score: 0,
@@ -105,6 +117,7 @@ export function useSimulation(initialScore = 22) {
 
             // Step 5: Final result (t=4600ms)
             timerRef.current = setTimeout(() => {
+              clearWatchdog();
               setState(buildState(22));
             }, 800);
           }, 1000);
@@ -112,6 +125,7 @@ export function useSimulation(initialScore = 22) {
       }, 1200);
     }, 400);
   }, [cancelSimulation]);
+
 
   return {
     state,

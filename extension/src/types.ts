@@ -124,3 +124,24 @@ export function getSuggestedResponse(level: ThreatLevel): string {
       return '"Thank you. I have received the project files and will start working as agreed."';
   }
 }
+
+/**
+ * Returns 3 pre-written safe response templates for high-risk conversations.
+ * Designed to be shown as click-to-copy chips below the chat input.
+ */
+export function getSuggestedTemplates(level: ThreatLevel): string[] {
+  switch (level) {
+    case 'high-risk':
+      return [
+        "Thanks, but I need to verify this request with Fiverr support first.",
+        "I'm only able to accept files through the official Fiverr platform. Please use the attachment feature here.",
+        "I prefer to keep all communication within Fiverr to protect both of us. Let's continue here.",
+      ];
+    case 'advisory':
+      return [
+        "I prefer keeping all messages inside Fiverr for my safety. What details would you like to discuss here?",
+      ];
+    case 'clear':
+      return [];
+  }
+}
