@@ -1,0 +1,39 @@
+{
+  "scenario_id": "fake_contractor_029",
+  "name": "Hosting Referral Contractor Redirect",
+  "description": "A client asks the developer to register a domain or buy hosting through a specific referral link to 'verify suitability' before work starts, harvesting affiliate fees and credentials.",
+  "conversation": [
+    {
+      "speaker": "buyer",
+      "message": "Hello, I am looking to hire a full-stack developer to manage and host our company site. We pay $60/hr."
+    },
+    {
+      "speaker": "seller",
+      "message": "Hi, I have extensive experience in full-stack web development. I can definitely help with that. Where is the site currently hosted?"
+    },
+    {
+      "speaker": "buyer",
+      "message": "We are migrating everything. Before I can award you the contract, you must sign up for a testing server at securehost-registration-portal.xyz/ref=28192 and buy the $15 developer hosting plan. This is to prove you can access and configure their environment. Send me the registration confirmation screenshot and I will hire you immediately and refund the $15."
+    },
+    {
+      "speaker": "seller",
+      "message": "Can't we use a free trial account, or can you create a sub-account for me to use instead?"
+    },
+    {
+      "speaker": "buyer",
+      "message": "No, our security policy requires each contractor to purchase their own testing package through that specific partner link. If you can't pay the $15, you are not serious about this job. Let me know if you do it or I move to the next candidate."
+    }
+  ],
+  "expected_threat_level": "critical",
+  "expected_trust_score_range": {
+    "min": 0,
+    "max": 29
+  },
+  "expected_intervention": "block",
+  "red_flags": [
+    "Requesting advance payment or purchase",
+    "Hosting or domain referral link redirection",
+    "Coercive warning threat of moving to other candidates",
+    "Promising immediate reimbursement for off-platform expense"
+  ]
+}

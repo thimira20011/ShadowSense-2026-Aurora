@@ -1,0 +1,34 @@
+{
+  "scenario_id": "legitimate_030",
+  "name": "General Client Inquiry for Development",
+  "description": "A professional client asks a technical question about React state management and requests a standard hourly quote, keeping all interactions official and on-platform.",
+  "conversation": [
+    {
+      "speaker": "buyer",
+      "message": "Hi, I have a React Native mobile application and we are experiencing some performance lags when updating our state management. We currently use Redux ToolKit. Are you familiar with optimizing React Native state?"
+    },
+    {
+      "speaker": "seller",
+      "message": "Yes, I have worked on React Native performance optimization before. Often it's related to unnecessary re-renders or large payloads in the Redux store. Could you share details of where the lags occur?"
+    },
+    {
+      "speaker": "buyer",
+      "message": "It mainly happens on our main dashboard list view when filtering items. I can share a sanitized code snippet of the component if that helps. What is your standard hourly rate for auditing React Native apps?"
+    },
+    {
+      "speaker": "seller",
+      "message": "That would be perfect. My rate is $50/hr on-platform. I can audit the component and give you an estimate of the required optimization work."
+    },
+    {
+      "speaker": "buyer",
+      "message": "That sounds very reasonable. Let me prepare the component code and I will send it to you shortly. We will keep everything through the official contract here."
+    }
+  ],
+  "expected_threat_level": "low",
+  "expected_trust_score_range": {
+    "min": 70,
+    "max": 100
+  },
+  "expected_intervention": "clear",
+  "red_flags": []
+}

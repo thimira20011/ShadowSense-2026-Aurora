@@ -1,0 +1,39 @@
+{
+  "scenario_id": "crypto_028",
+  "name": "Crypto Gas Fee Reimbursed Job",
+  "description": "A job offer requiring the developer to deploy a smart contract on Mainnet using their own wallet/gas fee, with a promise of immediate reimbursement and a massive bonus, but it harvests fees or credentials.",
+  "conversation": [
+    {
+      "speaker": "buyer",
+      "message": "Hi, I need a developer to deploy our smart contract to Ethereum Mainnet today. The contract is already compiled and tested."
+    },
+    {
+      "speaker": "seller",
+      "message": "Sure, I can help with that. Could you share the ABI and source code?"
+    },
+    {
+      "speaker": "buyer",
+      "message": "Yes, I will send the files. But because our company treasury wallet has a 24h multisig lock, you will need to pay the deployment gas fees from your personal wallet. We will reimburse you the gas costs plus a $5,000 bonus as soon as the transaction is confirmed. Can you do it now?"
+    },
+    {
+      "speaker": "seller",
+      "message": "I prefer not to use my personal funds for gas fees. Can you wait until the multisig lock is lifted or fund the deployment address directly?"
+    },
+    {
+      "speaker": "buyer",
+      "message": "No, this is extremely urgent! The launch is in 1 hour. If you don't do it now, we will hire someone else. Just fund it and send us the tx hash, we pay you immediately."
+    }
+  ],
+  "expected_threat_level": "critical",
+  "expected_trust_score_range": {
+    "min": 0,
+    "max": 29
+  },
+  "expected_intervention": "block",
+  "red_flags": [
+    "Requesting personal funds for business transaction",
+    "Artificial urgency and time pressure",
+    "Off-platform financial reimbursement promise",
+    "High-value incentive (bonus) for risky action"
+  ]
+}

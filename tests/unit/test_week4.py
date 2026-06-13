@@ -61,3 +61,39 @@ def test_quick_endpoint():
     }
     response_invalid = client.post("/api/pre-engage/quick", json=invalid_payload)
     assert response_invalid.status_code == 422
+
+
+def test_new_scenarios_validation():
+    """Verify that scenarios 28, 29, and 30 are correctly structured and exist."""
+    import json
+    import pathlib
+    
+    repo_root = pathlib.Path(__file__).resolve().parent.parent.parent
+    scenarios_dir = repo_root / "tests" / "test_scenarios"
+    
+    new_scenarios = [
+        "scenario_28_job_board_crypto.json",
+        "scenario_29_fake_contractor.json",
+        "scenario_30_legitimate_question.json"
+    ]
+    
+    for filename in new_scenarios:
+        filepath = scenarios_dir / filename
+        assert filepath.exists(), f"{filename} does not exist!"
+        
+        with open(filepath, "r", encoding="utf-8") as f:
+            data = json.load(f)
+            
+        assert "scenario_id" in data
+        assert "name" in data
+        assert "description" in data
+        assert "expected_threat_level" in data
+        assert "expected_trust_score_range" in data
+        assert "expected_intervention" in data
+        
+        # Check expected score range logic
+        score_range = data["expected_trust_score_range"]
+        assert "min" in score_range
+        assert "max" in score_range
+        assert 0 <= score_range["min"] <= score_range["max"] <= 100
+
