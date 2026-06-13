@@ -4,7 +4,7 @@ import json
 import logging
 import threading
 import unicodedata
-from typing import Dict, Any, List
+from typing import Any
 
 from groq import Groq
 from google import genai
@@ -19,7 +19,7 @@ logger = logging.getLogger(__name__)
 
 class LinguisticAgent:
     """Analyzes linguistic patterns to detect scam indicators."""
-    
+
     def __init__(self) -> None:
         self.agent = Agent(
             role="Linguistic Analyst",
@@ -33,15 +33,15 @@ class LinguisticAgent:
         self._index = 0
         self.clients = []
         self._keys = []
-        
+
         for key in GROQ_API_KEYS:
             if key and "placeholder" not in key.lower():
                 self.clients.append(Groq(api_key=key))
                 self._keys.append(key)
-        
+
         # Expose a default api_key for backward compatibility
         self.api_key = self._keys[0] if self._keys else None
-        
+
         if self.clients:
             self.is_mock = False
         else:
@@ -55,12 +55,12 @@ class LinguisticAgent:
         for key in GEMINI_API_KEYS:
             if key and "placeholder" not in str(key).lower():
                 self._gemini_clients.append(genai.Client(api_key=key))
-            
+
     # Maximum characters sent to the LLM.  Longer inputs are truncated to keep
     # inference times well within the 5-second orchestrator timeout.
     _MAX_TEXT_CHARS = 4_000
 
-    def analyze(self, text: str) -> Dict[str, Any]:
+    def analyze(self, text: str) -> dict[str, Any]:
         """Analyze text for linguistic red flags using Groq API, fallback to Gemini.
 
         Edge-case handling (Week 4):
@@ -129,13 +129,13 @@ class LinguisticAgent:
                 timeout=4.5 # Fast timeout to allow fallback if needed
             )
             content = chat_completion.choices[0].message.content
-            
+
             # Parse the JSON
             parsed = self._safe_parse_json(content)
-            
+
             latency = time.perf_counter() - start_time
             logger.info(f"LinguisticAgent analyze latency (Groq): {latency:.4f}s (Model: {self.model})")
-            
+
             flags = parsed.get("red_flags", [])
             if truncated:
                 flags.insert(0, "Message truncated — original exceeds 4,000 characters")
@@ -150,7 +150,7 @@ class LinguisticAgent:
             logger.error(f"Groq API error: {e}. Falling back to Gemini API.")
             return self._gemini_analyze(text, start_time, truncated=truncated)
 
-    def _gemini_analyze(self, text: str, start_time: float, truncated: bool = False) -> Dict[str, Any]:
+    def _gemini_analyze(self, text: str, start_time: float, truncated: bool = False) -> dict[str, Any]:
         """Fallback method using Gemini API."""
         if not self._gemini_clients:
             logger.warning("No Gemini clients available for fallback. Falling back to mock analysis.")
@@ -176,10 +176,10 @@ class LinguisticAgent:
             )
             content = response.text.strip() if response.text else "{}"
             parsed = self._safe_parse_json(content)
-            
+
             latency = time.perf_counter() - start_time
             logger.info(f"LinguisticAgent analyze latency (Gemini fallback): {latency:.4f}s")
-            
+
             flags = parsed.get("red_flags", [])
             if truncated:
                 flags.insert(0, "Message truncated — original exceeds 4,000 characters")
@@ -215,7 +215,7 @@ class LinguisticAgent:
             "Provide ONLY the raw JSON object. Do not include any text outside the JSON object."
         )
 
-    def _safe_parse_json(self, content: str) -> Dict[str, Any]:
+    def _safe_parse_json(self, content: str) -> dict[str, Any]:
         """Safely parse JSON from LLM response, stripping potential markdown wrapper."""
         content_str = content.strip()
         if content_str.startswith("```"):
@@ -225,14 +225,14 @@ class LinguisticAgent:
             if lines[-1].startswith("```"):
                 lines = lines[:-1]
             content_str = "\n".join(lines).strip()
-        
+
         try:
             return json.loads(content_str)
         except Exception as e:
             logger.warning(f"Failed to parse LLM response as JSON: {content_str}. Error: {e}")
             raise e
 
-    def _mock_analyze(self, text: str) -> Dict[str, Any]:
+    def _mock_analyze(self, text: str) -> dict[str, Any]:
         """Rule-based fallback analysis to match expected behavior."""
         text_lower = text.lower()
         red_flags = []
@@ -243,7 +243,7 @@ class LinguisticAgent:
         if any(w in text_lower for w in ["hurry", "urgent", "30 minutes", "minutes left", "right now", "expires", "no time"]):
             red_flags.append("Artificial Urgency")
             urgency_score = max(urgency_score, 70)
-        
+
         # Rule 2: Off-platform redirect / payment luring
         if any(w in text_lower for w in ["gift card", "telegram", "whatsapp", "outside the platform", "paypal friends"]):
             red_flags.append("Off-platform redirect attempt")

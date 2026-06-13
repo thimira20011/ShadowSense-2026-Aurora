@@ -1,5 +1,5 @@
 """Endpoint for scam analysis requests."""
-from typing import Optional, List, Any, Dict
+from typing import Any
 from fastapi import APIRouter
 from pydantic import BaseModel, Field
 from backend.agents.shield import ShieldAgent
@@ -13,10 +13,10 @@ shield = ShieldAgent()
 
 class AgentDetails(BaseModel):
     """Raw per-agent outputs included for transparency and debugging."""
-    linguistic:       Dict[str, Any] = Field(default_factory=dict)
-    identity:         Dict[str, Any] = Field(default_factory=dict)
-    payload:          Dict[str, Any] = Field(default_factory=dict)
-    similar_patterns: List[Any]      = Field(
+    linguistic:       dict[str, Any] = Field(default_factory=dict)
+    identity:         dict[str, Any] = Field(default_factory=dict)
+    payload:          dict[str, Any] = Field(default_factory=dict)
+    similar_patterns: list[Any]      = Field(
         default_factory=list,
         description="Top-k ChromaDB semantic matches (M1 Week-2 checkpoint)",
     )
@@ -26,7 +26,7 @@ class AnalysisResponse(BaseModel):
     """Full analysis response including Trust Score, narrative, and agent-level details."""
     trust_score:        int            = Field(..., description="0 = malicious, 100 = safe")
     verdict:            DefenseNarrative
-    agent_details:      Optional[AgentDetails] = Field(
+    agent_details:      AgentDetails | None = Field(
         None, description="Per-agent raw outputs (linguistic, identity, payload)"
     )
 

@@ -12,7 +12,7 @@ logging.basicConfig(level=logging.INFO)
 
 def run_tests():
     agent = ShieldAgent()
-    
+
     # Test 1: Normal context
     ctx1 = {
         "text": "Hello, I have a project for you. I will pay through Upwork.",

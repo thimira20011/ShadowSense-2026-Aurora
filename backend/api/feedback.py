@@ -24,7 +24,6 @@ import json
 import logging
 import datetime
 from pathlib import Path
-from typing import Optional
 
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, Field
@@ -102,7 +101,7 @@ class OverrideRequest(BaseModel):
     """
     analysis_id:  str            = Field(..., description="Unique analysis event ID")
     pattern_text: str            = Field(..., description="Flagged message text being overridden")
-    user_id:      Optional[str]  = Field("anonymous", description="Anonymised user identifier")
+    user_id:      str | None  = Field("anonymous", description="Anonymised user identifier")
     trust_score:  int            = Field(22, description="Original ShieldAgent trust score")
 
 

@@ -2,7 +2,7 @@
 import time
 import json
 import logging
-from typing import Dict, Any
+from typing import Any
 
 import threading
 from google import genai
@@ -44,15 +44,15 @@ class IdentityAgent:
         self._index = 0
         self._clients = []
         self._keys = []
-        
+
         for key in GEMINI_API_KEYS:
             if key and "placeholder" not in str(key).lower():
                 self._clients.append(genai.Client(api_key=key))
                 self._keys.append(key)
-        
+
         # Expose a default api_key for backward compatibility
         self.api_key = self._keys[0] if self._keys else None
-        
+
         if self._clients:
             self.is_mock = False
             logger.info("IdentityAgent initialised with %d Gemini clients, model: %s", len(self._clients), _GEMINI_MODEL)
@@ -66,7 +66,7 @@ class IdentityAgent:
     # Public API
     # ------------------------------------------------------------------
 
-    def verify(self, identity_data: Dict[str, Any]) -> Dict[str, Any]:
+    def verify(self, identity_data: dict[str, Any]) -> dict[str, Any]:
         """Verify a profile's identity and return a risk assessment.
 
         Args:
@@ -110,8 +110,12 @@ class IdentityAgent:
         try:
             result = self._gemini_verify(identity_data)
             latency = time.perf_counter() - start
-            logger.info("IdentityAgent latency (Gemini %s): %.4fs", _GEMINI_MODEL, latency)
-            print(f"IdentityAgent latency: {latency:.4f}s (Model: {_GEMINI_MODEL})")
+            logger.info(
+                "IdentityAgent latency (Gemini %s): %.4fs", _GEMINI_MODEL, latency
+            )
+            logger.debug(
+                "IdentityAgent latency: %.4fs (Model: %s)", latency, _GEMINI_MODEL
+            )
         except Exception as exc:
             latency = time.perf_counter() - start
             logger.error(
@@ -126,7 +130,7 @@ class IdentityAgent:
     # Private helpers
     # ------------------------------------------------------------------
 
-    def _build_prompt(self, identity_data: Dict[str, Any]) -> str:
+    def _build_prompt(self, identity_data: dict[str, Any]) -> str:
         profile_str = json.dumps(identity_data, indent=2)
         return f"""You are an identity fraud analyst for freelance platforms (Fiverr, Upwork, etc.).
 
@@ -153,7 +157,7 @@ Key signals to evaluate:
 - verified == false alongside other flags → raises risk
 - Bio that is generic / copied / empty → small risk boost"""
 
-    def _gemini_verify(self, identity_data: Dict[str, Any]) -> Dict[str, Any]:
+    def _gemini_verify(self, identity_data: dict[str, Any]) -> dict[str, Any]:
         prompt = self._build_prompt(identity_data)
 
         # Select next client and log details
@@ -196,7 +200,7 @@ Key signals to evaluate:
             "confidence":    confidence,
         }
 
-    def _mock_verify(self, identity_data: Dict[str, Any]) -> Dict[str, Any]:
+    def _mock_verify(self, identity_data: dict[str, Any]) -> dict[str, Any]:
         """Rule-based fallback that mirrors the Gemini response schema."""
         identity_risk = 0.0
         anomalies: list = []

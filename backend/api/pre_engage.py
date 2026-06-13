@@ -1,5 +1,4 @@
 """Endpoint for pre-engagement job listing analysis (Fiverr / Upwork)."""
-from typing import Optional
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, Field
 from backend.models import JobPostingRequest, PreEngageResponse
@@ -54,7 +53,7 @@ async def analyze_job_posting(request: JobPostingRequest) -> PreEngageResponse:
 class QuickJobPostingRequest(BaseModel):
     """Payload for quick pre-engagement analysis request."""
     job_text: str = Field(..., description="The content of the job listing to analyze")
-    client_profile: Optional[dict] = Field(default_factory=dict, description="Scraped client/buyer profile metadata")
+    client_profile: dict | None = Field(default_factory=dict, description="Scraped client/buyer profile metadata")
 
 
 @router.post("/quick", response_model=PreEngageResponse)
