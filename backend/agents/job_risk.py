@@ -18,7 +18,7 @@ import logging
 import re
 import sys
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -43,7 +43,7 @@ except Exception as _import_err:
 # Keyword red-flag catalogue (compiled once at module load)
 # ---------------------------------------------------------------------------
 # Each tuple: (regex_pattern, display_label, penalty_points)
-_KEYWORD_FLAGS: List[Tuple[re.Pattern, str, int]] = [
+_KEYWORD_FLAGS: list[tuple[re.Pattern, str, int]] = [
     (re.compile(r"\b(pay|payment|deposit|advance)\s+(outside|off|via)\b", re.I),
      "Requests payment outside the platform", 25),
     (re.compile(r"\b(whatsapp|telegram|signal|wechat|viber)\b", re.I),
@@ -99,9 +99,9 @@ class JobRiskAgent:
         job_url: str,
         job_title: str,
         job_description: str,
-        budget: Optional[str] = None,
-        client_profile: Optional[Dict[str, Any]] = None,
-    ) -> Dict[str, Any]:
+        budget: str | None = None,
+        client_profile: dict[str, Any] | None = None,
+    ) -> dict[str, Any]:
         client_profile = client_profile or {}
         full_text = f"{job_title}\n\n{job_description}"
 
@@ -109,9 +109,9 @@ class JobRiskAgent:
         client_penalty, client_breakdown, client_flags = self._score_client(client_profile)
 
         # ── 2. Semantic similarity (ChromaDB) ─────────────────────────────
-        similar_patterns: List[Dict[str, Any]] = []
+        similar_patterns: list[dict[str, Any]] = []
         semantic_penalty = 0
-        semantic_flags: List[str] = []
+        semantic_flags: list[str] = []
 
         if _CHROMADB_ENABLED and _query_similar_scams is not None and full_text.strip():
             try:
@@ -170,7 +170,7 @@ class JobRiskAgent:
         )
         confidence = round(min(0.99, 0.50 + signals_fired * 0.16), 2)
 
-        all_flags: List[str] = []
+        all_flags: list[str] = []
         seen: set = set()
         for flag in client_flags + semantic_flags + keyword_flags:
             if flag not in seen:
@@ -210,12 +210,12 @@ class JobRiskAgent:
 
     @staticmethod
     def _score_client(
-        profile: Dict[str, Any],
-    ) -> Tuple[int, Dict[str, Any], List[str]]:
+        profile: dict[str, Any],
+    ) -> tuple[int, dict[str, Any], list[str]]:
         """Score client profile metadata. Returns (penalty, breakdown, flags)."""
         penalty   = 0
-        breakdown: Dict[str, Any] = {}
-        flags:     List[str]      = []
+        breakdown: dict[str, Any] = {}
+        flags:     list[str]      = []
 
         reviews = profile.get("reviews")
         if reviews is not None:
@@ -282,10 +282,10 @@ class JobRiskAgent:
         return penalty, breakdown, flags
 
     @staticmethod
-    def _scan_keywords(text: str) -> Tuple[int, List[str]]:
+    def _scan_keywords(text: str) -> tuple[int, list[str]]:
         """Run keyword heuristics. Returns (total_penalty capped at 50, flags)."""
         total  = 0
-        flags: List[str] = []
+        flags: list[str] = []
         for pattern, label, penalty in _KEYWORD_FLAGS:
             if pattern.search(text):
                 total += penalty
@@ -293,7 +293,7 @@ class JobRiskAgent:
         return min(total, 50), flags
 
 
-def analyze_job_listing(job_text: str, client_profile: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
+def analyze_job_listing(job_text: str, client_profile: dict[str, Any] | None = None) -> dict[str, Any]:
     """Exposes standalone function to score a job listing for scam indicators.
 
     Separates title and description from the raw job_text and delegates to JobRiskAgent.

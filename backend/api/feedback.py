@@ -24,7 +24,6 @@ import json
 import logging
 import datetime
 from pathlib import Path
-from typing import Optional
 
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, Field
@@ -102,7 +101,7 @@ class OverrideRequest(BaseModel):
     """
     analysis_id:  str            = Field(..., description="Unique analysis event ID")
     pattern_text: str            = Field(..., description="Flagged message text being overridden")
-    user_id:      Optional[str]  = Field("anonymous", description="Anonymised user identifier")
+    user_id:      str | None  = Field("anonymous", description="Anonymised user identifier")
     trust_score:  int            = Field(22, description="Original ShieldAgent trust score")
 
 
@@ -134,7 +133,7 @@ async def submit_feedback(request: FeedbackRequest):
 
     # ── Week 4: JSONL log ────────────────────────────────────────────────
     _append_feedback_log({
-        "timestamp":          datetime.datetime.now(datetime.timezone.utc).isoformat().replace("+00:00", "Z"),
+        "timestamp":          datetime.datetime.now(datetime.UTC).isoformat().replace("+00:00", "Z"),
         "event":              "general_feedback",
         "analysis_id":        request.analysis_id,
         "action":             request.user_feedback,
@@ -190,7 +189,7 @@ async def submit_override(request: OverrideRequest):
 
     # ── Week 4: JSONL log ────────────────────────────────────────────────
     _append_feedback_log({
-        "timestamp":       datetime.datetime.now(datetime.timezone.utc).isoformat().replace("+00:00", "Z"),
+        "timestamp":       datetime.datetime.now(datetime.UTC).isoformat().replace("+00:00", "Z"),
         "event":           "override",
         "analysis_id":     result.analysis_id,
         "pattern_key":     result.pattern_key,

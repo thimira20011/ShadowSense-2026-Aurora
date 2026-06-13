@@ -3,7 +3,7 @@ import sys
 import logging
 import concurrent.futures
 from pathlib import Path
-from typing import Dict, Any, List
+from typing import Any
 
 from ._crewai_stub import Agent  # TODO: replace with `from crewai import Agent` once crewai-core is on PyPI
 from .linguistic import LinguisticAgent
@@ -94,7 +94,7 @@ class ShieldAgent:
     # Public API
     # ------------------------------------------------------------------
 
-    def defend(self, context: Dict[str, Any]) -> Dict[str, Any]:
+    def defend(self, context: dict[str, Any]) -> dict[str, Any]:
         """Run the full multi-agent pipeline and return a structured verdict.
 
         Args:
@@ -121,7 +121,7 @@ class ShieldAgent:
         extra_ctx    = context.get("context", {}) or {}
         sender       = context.get("sender")
 
-        profile_meta: Dict[str, Any] = {}
+        profile_meta: dict[str, Any] = {}
         for key in ("account_age_days", "reviews", "verified", "username", "country", "bio"):
             if key in extra_ctx:
                 profile_meta[key] = extra_ctx[key]
@@ -147,7 +147,7 @@ class ShieldAgent:
         except Exception as e:
             logger.error(f"Linguistic failed: {e}")
             linguistic_res = {"urgency_score": 0.0, "red_flags": ["Analysis failed"], "confidence": 0.0}
-            
+
         try:
             identity_res = future_identity.result() if future_identity in done else {"identity_risk": 0.0, "anomalies": ["Analysis timeout"], "confidence": 0.0}
         except Exception as e:
@@ -167,7 +167,7 @@ class ShieldAgent:
         payload_risk = float(payload_res.get("payload_risk", 0.0))
 
         # -- 2. Semantic similarity (ChromaDB) -- M1 Week-2/3 checkpoint ------
-        similar_patterns: List[Dict[str, Any]] = []
+        similar_patterns: list[dict[str, Any]] = []
         chromadb_penalty = 0.0
         if _CHROMADB_ENABLED and _query_similar_scams is not None:
             try:
@@ -276,13 +276,13 @@ class ShieldAgent:
     @staticmethod
     def _build_reasons(
         score: int,
-        linguistic_res: Dict[str, Any],
-        identity_res:   Dict[str, Any],
-        payload_res:    Dict[str, Any],
-        similar_patterns: List[Dict[str, Any]] = None,
-    ) -> List[str]:
+        linguistic_res: dict[str, Any],
+        identity_res:   dict[str, Any],
+        payload_res:    dict[str, Any],
+        similar_patterns: list[dict[str, Any]] = None,
+    ) -> list[str]:
         """Build human-readable bullet-point reasons for the Trust Score."""
-        reasons: List[str] = []
+        reasons: list[str] = []
 
         # Linguistic flags
         for flag in linguistic_res.get("red_flags", []):
@@ -319,7 +319,7 @@ class ShieldAgent:
         return reasons
 
     @staticmethod
-    def _suggested_responses(score: int) -> List[str]:
+    def _suggested_responses(score: int) -> list[str]:
         """Return platform-appropriate response templates based on risk level."""
         if score >= 70:
             return [
