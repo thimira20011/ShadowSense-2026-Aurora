@@ -13,6 +13,30 @@ interface ActionButtonsProps {
 
 const BACKEND_BASE = 'http://127.0.0.1:8000';
 
+/**
+ * POST to /api/feedback/override — triggers ChromaDB benign-pattern learning.
+ * Called on Override + Continue action.
+ */
+async function postOverride(messageId: string, trustScore: number): Promise<void> {
+  try {
+    const res = await fetch(`${BACKEND_BASE}/api/feedback/override`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        analysis_id: messageId,
+        pattern_text: `override:${messageId}`,
+        trust_score: trustScore,
+      }),
+    });
+    console.info('[ShadowSense] ActionButtons override sent to /api/feedback/override — HTTP', res.status);
+  } catch (err) {
+    console.warn('[ShadowSense] Override POST failed (offline?):', err);
+  }
+}
+
+/**
+ * POST to /api/feedback — general accuracy log for false-positive reporting.
+ */
 async function postFeedback(payload: OverridePayload): Promise<void> {
   try {
     const res = await fetch(`${BACKEND_BASE}/api/feedback`, {
@@ -52,19 +76,13 @@ export const ActionButtons: React.FC<ActionButtonsProps> = ({
   /* ── Override / Dismiss ── */
   const handleOverride = async () => {
     setSendingOver(true);
-    const payload: OverridePayload = {
-      action: 'override',
+    // Log per spec: {action: "override", message_id: "...", trust_score: 22}
+    console.log('[ShadowSense] Override action — calling /api/feedback/override for ChromaDB learning:', {
       message_id: messageId,
       trust_score: score,
-      timestamp: new Date().toISOString(),
-    };
-    // Log per spec: {action: "override", message_id: "...", trust_score: 22}
-    console.log('[ShadowSense] Override action:', {
-      action: payload.action,
-      message_id: payload.message_id,
-      trust_score: payload.trust_score,
     });
-    await postFeedback(payload);
+    // Call /api/feedback/override (triggers ChromaDB benign-pattern learning)
+    await postOverride(messageId, score);
     setSendingOver(false);
     setOverrideSent(true);
     onOverride?.();
