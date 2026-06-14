@@ -1,4 +1,5 @@
 """Endpoint for scam analysis requests."""
+import uuid
 from typing import Any
 from fastapi import APIRouter
 from pydantic import BaseModel, Field
@@ -24,6 +25,7 @@ class AgentDetails(BaseModel):
 
 class AnalysisResponse(BaseModel):
     """Full analysis response including Trust Score, narrative, and agent-level details."""
+    analysis_id:        str            = Field(..., description="Unique ID for this analysis event (UUID4)")
     trust_score:        int            = Field(..., description="0 = malicious, 100 = safe")
     verdict:            DefenseNarrative
     agent_details:      AgentDetails | None = Field(
@@ -38,7 +40,10 @@ async def analyze_message(message: ChatMessage) -> AnalysisResponse:
     The Shield coordinates:
       - LinguisticAgent  (Groq / llama-4-scout)   — urgency, grammar, manipulation
       - IdentityAgent    (Gemini Flash-Lite)        — account age, reviews, verification
-      - PayloadAgent     (stub → Ollama Week 3)     — file/link threat detection
+      - PayloadAgent     (Ollama DeepSeek-R1)       — file/link threat detection
+
+    Returns analysis_id (UUID4) so the extension can attribute Override+Report
+    feedback events to a specific analysis via POST /api/feedback/override.
     """
     context = {
         "text":      message.text,
@@ -53,6 +58,7 @@ async def analyze_message(message: ChatMessage) -> AnalysisResponse:
     agent_details_obj = AgentDetails(**details) if details else None
 
     return AnalysisResponse(
+        analysis_id=str(uuid.uuid4()),
         trust_score=result["trust_score"]["score"],
         verdict=DefenseNarrative(
             trust_score=TrustScore(**result["trust_score"]),

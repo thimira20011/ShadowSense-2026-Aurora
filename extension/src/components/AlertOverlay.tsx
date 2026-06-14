@@ -3,17 +3,21 @@
  * ─────────────────────────────────────────────────────────────────────────────
  * Tiered intervention overlay positioned absolutely over the Fiverr chat window.
  *
- * Score ranges:
+ * Score ranges (Week 4 tuned thresholds):
  *   Clear     70–100 → No overlay (silent mode)
- *   Advisory  40–69  → Yellow slide-in banner — "This conversation shows moderate risk signals"
- *   High-risk  0–39  → Red rising modal blocking chat input — "High-risk conversation detected"
+ *   Advisory  30–69  → Yellow slide-in banner — "This conversation shows moderate risk signals"
+ *   High-risk  0–29  → Red rising modal blocking chat input — "High-risk conversation detected"
  *
- * Override + Report feedback is POSTed to /api/feedback with:
- *   { action: "override" | "false_positive", message_id, trust_score, timestamp }
+ * Override feedback is POSTed to /api/feedback/override (triggers ChromaDB benign-pattern learning):
+ *   { analysis_id, pattern_text, trust_score }
+ *
+ * False-positive reports are POSTed to /api/feedback (general accuracy log):
+ *   { analysis_id, user_feedback: "false_positive", was_accurate: false }
  *
  * Bug fixes applied:
  *   - Retry button appears when feedback POST fails
  *   - Escape key dismisses the modal (keyboard accessibility)
+ *   - Override + Continue now correctly calls /api/feedback/override
  */
 
 import React, { useState, useCallback, useEffect } from 'react';
@@ -48,6 +52,28 @@ export interface AlertOverlayProps {
 
 const BACKEND_BASE = 'http://127.0.0.1:8000';
 
+/**
+ * POST to /api/feedback/override — triggers ChromaDB benign-pattern learning.
+ * Called when the user clicks "Override + Continue" on a high-risk alert.
+ */
+async function postOverride(analysisId: string, patternText: string, trustScore: number): Promise<void> {
+  const res = await fetch(`${BACKEND_BASE}/api/feedback/override`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      analysis_id: analysisId,
+      pattern_text: patternText,
+      trust_score:  trustScore,
+    }),
+  });
+  if (!res.ok) throw new Error(`Override API returned ${res.status}`);
+  console.info('[ShadowSense] ✓ Override sent to ChromaDB learning pipeline — status', res.status);
+}
+
+/**
+ * POST to /api/feedback — general accuracy log (false positives, etc.).
+ * Does NOT trigger ChromaDB pattern learning.
+ */
 async function postFeedback(payload: OverridePayload): Promise<void> {
   const res = await fetch(`${BACKEND_BASE}/api/feedback`, {
     method: 'POST',
@@ -64,6 +90,7 @@ async function postFeedback(payload: OverridePayload): Promise<void> {
       },
     }),
   });
+  if (!res.ok) throw new Error(`Feedback API returned ${res.status}`);
   console.info('[ShadowSense] ✓ Feedback received by backend — status', res.status, payload);
 }
 
@@ -206,13 +233,13 @@ const HighRiskModal: React.FC<{
       trust_score: score,
       timestamp: new Date().toISOString(),
     };
-    console.log('[ShadowSense] Override action logged:', {
-      action: 'override',
-      message_id: messageId,
+    console.log('[ShadowSense] Override action — calling /api/feedback/override for ChromaDB learning:', {
+      analysis_id: messageId,
       trust_score: score,
     });
     try {
-      await postFeedback(payload);
+      // Use /api/feedback/override (not /api/feedback) to trigger ChromaDB benign-pattern learning
+      await postOverride(messageId, `override:${messageId}`, score);
       onFeedbackSent(payload);
       setOverridden(true);
       setTimeout(onDismiss, 500);

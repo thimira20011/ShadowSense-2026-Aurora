@@ -1,26 +1,113 @@
 /**
- * Backend API client for Chrome extension
+ * ShadowSense Aurora — Backend API Client
+ *
+ * All request/response types are kept in sync with the FastAPI schemas defined
+ * in backend/api/analyze.py, backend/api/feedback.py, and backend/api/pre_engage.py.
  */
 
-const API_BASE = import.meta.env.VITE_BACKEND_URL || "http://localhost:8000";
+const API_BASE = "http://localhost:8000";
 
+// ─── /api/analyze ────────────────────────────────────────────────────────────
+
+/** Matches backend ChatMessage Pydantic model */
 export interface AnalysisRequest {
-  content: string;
-  context: Record<string, unknown>;
+  text: string;
+  sender?: string;
+  timestamp?: string;
+  context?: Record<string, unknown>;
 }
 
+/** Matches backend TrustScore Pydantic model */
+export interface TrustScore {
+  score: number;       // 0–100
+  level: string;       // "CLEAR" | "ADVISORY" | "HIGH_RISK"
+  explanation: string;
+}
+
+/** Matches backend DefenseNarrative Pydantic model */
+export interface DefenseNarrative {
+  trust_score: TrustScore;
+  reasons: string[];
+  suggested_responses: string[];
+}
+
+/** Matches backend AgentDetails Pydantic model */
+export interface AgentDetails {
+  linguistic: Record<string, unknown>;
+  identity: Record<string, unknown>;
+  payload: Record<string, unknown>;
+  similar_patterns: unknown[];
+}
+
+/** Matches backend AnalysisResponse Pydantic model */
 export interface AnalysisResponse {
-  threat_level: "low" | "medium" | "high" | "critical";
-  confidence: number;
-  indicators: Array<{
-    type: string;
-    description: string;
-    confidence: number;
-  }>;
-  narrative: string;
+  /** UUID generated per-request — use as feedback analysis_id */
+  analysis_id: string;
+  trust_score: number;
+  verdict: DefenseNarrative;
+  agent_details: AgentDetails | null;
 }
 
-/** Payload sent when the user clicks "Override + Report". */
+/** Analyse a single chat message through the 4-agent Shield pipeline. */
+export async function analyzeMessage(
+  request: AnalysisRequest,
+  timeoutMs = 10_000
+): Promise<AnalysisResponse> {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+
+  try {
+    const response = await fetch(`${API_BASE}/api/analyze/`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(request),
+      signal: controller.signal,
+    });
+
+    if (!response.ok) {
+      throw new Error(`Analysis failed: ${response.status} ${response.statusText}`);
+    }
+
+    return response.json() as Promise<AnalysisResponse>;
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+// ─── /api/feedback ───────────────────────────────────────────────────────────
+
+export interface FeedbackRequest {
+  analysis_id: string;
+  user_feedback: string;
+  was_accurate: boolean;
+  additional_context?: Record<string, unknown>;
+}
+
+export interface FeedbackResponse {
+  success: boolean;
+  message: string;
+}
+
+/** Submit general accuracy feedback (was the detection correct?). */
+export async function submitFeedback(
+  request: FeedbackRequest
+): Promise<FeedbackResponse> {
+  const response = await fetch(`${API_BASE}/api/feedback/`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(request),
+  });
+
+  if (!response.ok) {
+    throw new Error(`Feedback submission failed: ${response.statusText}`);
+  }
+
+  return response.json() as Promise<FeedbackResponse>;
+}
+
+// ─── /api/feedback/override ──────────────────────────────────────────────────
+
+/** Payload sent when the user clicks "Override + Continue". */
 export interface OverrideRequest {
   /** Unique ID of the analysis event returned by /api/analyze. */
   analysis_id: string;
@@ -46,54 +133,12 @@ export interface OverrideResponse {
   message: string;
 }
 
-export async function analyzeContent(
-  request: AnalysisRequest
-): Promise<AnalysisResponse> {
-  const response = await fetch(`${API_BASE}/api/analyze/`, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify(request),
-  });
-
-  if (!response.ok) {
-    throw new Error(
-      `Analysis failed: ${response.status} ${response.statusText}`
-    );
-  }
-
-  return response.json();
-}
-
-export async function submitFeedback(
-  analysisId: string,
-  wasAccurate: boolean,
-  feedback: string
-): Promise<void> {
-  const response = await fetch(`${API_BASE}/api/feedback/`, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({
-      analysis_id: analysisId,
-      user_feedback: feedback,
-      was_accurate: wasAccurate,
-    }),
-  });
-
-  if (!response.ok) {
-    throw new Error(`Feedback submission failed: ${response.statusText}`);
-  }
-}
-
 /**
  * Submit an "Override + Report" event when the user disagrees with the
  * ShieldAgent verdict and clicks the Override button.
  *
  * On success the backend:
- *  - Stores the message in ChromaDB with {false_positive: true, trust_score: 22}
+ *  - Stores the message in ChromaDB with {false_positive: true, trust_score}
  *  - Increments the per-pattern override counter
  *  - Promotes the pattern to benign (+20 trust boost) after 3+ overrides
  */
@@ -102,9 +147,7 @@ export async function submitOverride(
 ): Promise<OverrideResponse> {
   const response = await fetch(`${API_BASE}/api/feedback/override`, {
     method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-    },
+    headers: { "Content-Type": "application/json" },
     body: JSON.stringify(request),
   });
 
@@ -117,7 +160,7 @@ export async function submitOverride(
   return response.json() as Promise<OverrideResponse>;
 }
 
-// ─── Pre-Engagement Job Analysis ─────────────────────────────────────────────
+// ─── /api/pre-engage ─────────────────────────────────────────────────────────
 
 export interface ClientProfileRequest {
   reviews?: number;
@@ -156,20 +199,11 @@ export interface SimilarJobPattern {
 }
 
 export interface PreEngageResponse {
-  /**
-   * Pre-Engagement Trust Score: 0 = certain scam, 100 = verified safe.
-   * Badge colours: 70-100 🟢 | 40-69 🟡 | 0-39 🔴
-   */
   pre_engage_score: number;
-  /** 'VERIFIED_SAFE' | 'MODERATE_RISK' | 'HIGH_RISK' */
   verdict: string;
-  /** Overall confidence in the verdict 0.0–1.0 */
   confidence: number;
-  /** Human-readable risk flags */
   red_flags: string[];
-  /** Top ChromaDB semantic matches from the job_scam_patterns collection */
   similar_patterns: SimilarJobPattern[];
-  /** Per-signal breakdown of client profile risk */
   client_risk_breakdown: Record<string, unknown>;
   platform: string;
   job_url: string;
@@ -195,4 +229,22 @@ export async function analyzeJobPosting(
   }
 
   return response.json() as Promise<PreEngageResponse>;
+}
+
+// ─── /health ─────────────────────────────────────────────────────────────────
+
+export interface HealthResponse {
+  status: string;
+  service: string;
+  version: string;
+  providers: Record<string, string>;
+}
+
+/** Ping the backend health check — useful for detecting offline state. */
+export async function checkHealth(): Promise<HealthResponse> {
+  const response = await fetch(`${API_BASE}/health`, { method: "GET" });
+  if (!response.ok) {
+    throw new Error(`Health check failed: ${response.statusText}`);
+  }
+  return response.json() as Promise<HealthResponse>;
 }
