@@ -107,24 +107,59 @@ class IdentityAgent:
             logger.info("IdentityAgent latency (mock): %.4fs", latency)
             return result
 
-        try:
-            result = self._gemini_verify(identity_data)
-            latency = time.perf_counter() - start
-            logger.info(
-                "IdentityAgent latency (Gemini %s): %.4fs", _GEMINI_MODEL, latency
-            )
-            logger.debug(
-                "IdentityAgent latency: %.4fs (Model: %s)", latency, _GEMINI_MODEL
-            )
-        except Exception as exc:
-            latency = time.perf_counter() - start
-            logger.error(
-                "Gemini API error: %s. Falling back to rule-based mock. Latency: %.4fs",
-                exc, latency,
-            )
-            result = self._mock_verify(identity_data)
+        # Try all available API keys in round-robin order before falling back to mock
+        num_clients = len(self._clients)
+        last_exc: Exception | None = None
 
-        return result
+        for attempt in range(num_clients):
+            with self._lock:
+                current_idx = self._index
+                client = self._clients[current_idx]
+                key_info = self._keys[current_idx]
+                # Advance index for the next caller (round-robin)
+                self._index = (self._index + 1) % num_clients
+
+            masked_key = f"...{key_info[-6:]}" if len(key_info) > 6 else key_info
+            logger.info(
+                "IdentityAgent: Using Gemini API Key index %d (masked: %s) [attempt %d/%d]",
+                current_idx, masked_key, attempt + 1, num_clients,
+            )
+
+            try:
+                result = self._gemini_verify_with_client(client, identity_data)
+                latency = time.perf_counter() - start
+                logger.info("IdentityAgent latency (Gemini %s): %.4fs", _GEMINI_MODEL, latency)
+                return result
+
+            except Exception as exc:
+                exc_str = str(exc)
+                last_exc = exc
+
+                # 429 RESOURCE_EXHAUSTED → try next key
+                if "429" in exc_str or "RESOURCE_EXHAUSTED" in exc_str:
+                    logger.warning(
+                        "IdentityAgent: Key index %d hit quota limit (429). "
+                        "Trying next key... [%d/%d remaining]",
+                        current_idx, num_clients - attempt - 1, num_clients,
+                    )
+                    continue  # try next key
+
+                # Any other error (auth, network, parse) → fall back immediately
+                latency = time.perf_counter() - start
+                logger.error(
+                    "Gemini API error (non-quota): %s. Falling back to rule-based mock. Latency: %.4fs",
+                    exc, latency,
+                )
+                return self._mock_verify(identity_data)
+
+        # All keys exhausted (all hit 429)
+        latency = time.perf_counter() - start
+        logger.error(
+            "All %d Gemini API keys exhausted (all quota-limited). "
+            "Falling back to rule-based mock. Last error: %s. Latency: %.4fs",
+            num_clients, last_exc, latency,
+        )
+        return self._mock_verify(identity_data)
 
     # ------------------------------------------------------------------
     # Private helpers
@@ -157,18 +192,11 @@ Key signals to evaluate:
 - verified == false alongside other flags → raises risk
 - Bio that is generic / copied / empty → small risk boost"""
 
-    def _gemini_verify(self, identity_data: dict[str, Any]) -> dict[str, Any]:
+    def _gemini_verify_with_client(
+        self, client: genai.Client, identity_data: dict[str, Any]
+    ) -> dict[str, Any]:
+        """Run Gemini inference with a specific client instance."""
         prompt = self._build_prompt(identity_data)
-
-        # Select next client and log details
-        with self._lock:
-            current_idx = self._index
-            client = self._clients[current_idx]
-            key_info = self._keys[current_idx]
-            self._index = (self._index + 1) % len(self._clients)
-
-        masked_key = f"...{key_info[-6:]}" if len(key_info) > 6 else key_info
-        logger.info(f"IdentityAgent: Using Gemini API Key index {current_idx} (masked: {masked_key})")
 
         response = client.models.generate_content(
             model=_GEMINI_MODEL,
@@ -180,7 +208,6 @@ Key signals to evaluate:
         )
 
         raw = response.text.strip() if response.text else "{}"
-        # Strip accidental markdown fences
         if raw.startswith("```"):
             lines = raw.splitlines()
             raw = "\n".join(
@@ -188,7 +215,6 @@ Key signals to evaluate:
             ).strip()
 
         parsed = json.loads(raw)
-
         identity_risk = float(parsed.get("identity_risk", 0.0))
         anomalies = parsed.get("anomalies", [])
         confidence = float(parsed.get("confidence", 1.0))
