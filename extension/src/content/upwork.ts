@@ -161,12 +161,12 @@ function extractTimestamp(row: Element): string {
 function detectSenderRole(row: Element): "self" | "other" {
   const styleAttr = row.getAttribute("style") ?? "";
 
+  // Check data attributes and labels
   const selfSignals = [
     row.getAttribute("data-self"),
     row.getAttribute("data-is-self"),
     row.getAttribute("data-sender-is-me"),
     row.getAttribute("aria-label"),
-    row.className,
   ];
 
   for (const signal of selfSignals) {
@@ -181,6 +181,21 @@ function detectSenderRole(row: Element): "self" | "other" {
     ) {
       return "self";
     }
+  }
+
+  // Check className separately to prevent matching "message" containing "me"
+  const className = row.className ?? "";
+  const lowerClass = className.toLowerCase();
+  if (
+    lowerClass.includes("self") ||
+    lowerClass.includes("own") ||
+    lowerClass.includes("outgoing") ||
+    lowerClass.includes("sent") ||
+    /\bme\b/i.test(className) ||
+    lowerClass.includes("is-me") ||
+    lowerClass.includes("sender-me")
+  ) {
+    return "self";
   }
 
   const style = window.getComputedStyle(row);
@@ -276,6 +291,11 @@ class UpworkChatObserver {
 
     this.attach();
     await this.scanAll();
+
+    if (existing.length > 0) {
+      console.log(`[ShadowSense] Notifying background of ${existing.length} preloaded messages to refresh active trust score`);
+      this.notifyBackground(existing);
+    }
   }
 
   private attach(attempts = 0): void {
