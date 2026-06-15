@@ -14,6 +14,7 @@ import type { OverridePayload } from './AlertOverlay';
 interface PopupPanelProps {
   state: SimulationState;
   messageId?: string;
+  platform?: "fiverr" | "upwork";
 }
 
 function getGaugeCardBg(level: string): string {
@@ -75,6 +76,7 @@ function markDismissedInSession(messageId: string): void {
 export const PopupPanel: React.FC<PopupPanelProps> = ({
   state,
   messageId = 'fiverr-msg-001',
+  platform = 'fiverr',
 }) => {
   const { score, level, agents, reasons, suggestedResponse, isStreaming } = state;
 
@@ -97,7 +99,7 @@ export const PopupPanel: React.FC<PopupPanelProps> = ({
     console.log('[ShadowSense] PopupPanel ← feedback event:', payload);
   };
 
-  const templates = getSuggestedTemplates(level);
+  const templates = state.suggestedTemplates ?? getSuggestedTemplates(level, platform);
 
   return (
     <div
@@ -154,7 +156,7 @@ export const PopupPanel: React.FC<PopupPanelProps> = ({
             <div className="ext-brand-status">
               <span className={`status-dot${isStreaming ? ' pulsing' : ''}`} />
               <span>
-                {isStreaming ? 'Scanning message stream…' : 'Active on Fiverr'}
+                {isStreaming ? 'Scanning message stream…' : `Active on ${platform === 'upwork' ? 'Upwork' : 'Fiverr'}`}
               </span>
             </div>
           </div>

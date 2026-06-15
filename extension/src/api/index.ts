@@ -212,23 +212,27 @@ export interface PreEngageResponse {
 /**
  * Analyse a job/gig listing before the freelancer applies.
  * Returns a Pre-Engagement Trust Score with verdict and red flags.
+ * Routes the request through the background script to bypass the host page's CSP.
  */
 export async function analyzeJobPosting(
   request: PreEngageRequest
 ): Promise<PreEngageResponse> {
-  const response = await fetch(`${API_BASE}/api/pre-engage/`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(request),
-  });
-
-  if (!response.ok) {
-    throw new Error(
-      `Pre-engage analysis failed: ${response.status} ${response.statusText}`
+  return new Promise((resolve, reject) => {
+    chrome.runtime.sendMessage(
+      { type: "ANALYZE_GIG", payload: request },
+      (response) => {
+        if (chrome.runtime.lastError) {
+          reject(new Error(chrome.runtime.lastError.message));
+          return;
+        }
+        if (response && response.success) {
+          resolve(response.result as PreEngageResponse);
+        } else {
+          reject(new Error(response?.error || "Unknown pre-engage analysis error"));
+        }
+      }
     );
-  }
-
-  return response.json() as Promise<PreEngageResponse>;
+  });
 }
 
 // ─── /health ─────────────────────────────────────────────────────────────────
