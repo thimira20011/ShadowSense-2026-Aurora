@@ -248,6 +248,51 @@ chrome.runtime.onMessage.addListener(
       return true;
     }
 
+    // ── Feedback submissions ──────────────────────────────────────────────────
+    if (request.type === "SUBMIT_GENERAL_FEEDBACK") {
+      const feedbackPayload = request.payload;
+      fetch(`${API_BASE}/api/feedback/`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(feedbackPayload),
+      })
+        .then((r) => {
+          if (!r.ok) throw new Error(`Feedback API error: ${r.status}`);
+          return r.json();
+        })
+        .then((data) => {
+          console.log("[ShadowSense BG] Feedback result:", data);
+          sendResponse({ success: true, result: data });
+        })
+        .catch((err) => {
+          console.error("[ShadowSense BG] Feedback submission failed:", err.message);
+          sendResponse({ success: false, error: err.message });
+        });
+      return true;
+    }
+
+    if (request.type === "SUBMIT_OVERRIDE_FEEDBACK") {
+      const overridePayload = request.payload;
+      fetch(`${API_BASE}/api/feedback/override`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(overridePayload),
+      })
+        .then((r) => {
+          if (!r.ok) throw new Error(`Override API error: ${r.status}`);
+          return r.json();
+        })
+        .then((data) => {
+          console.log("[ShadowSense BG] Override result:", data);
+          sendResponse({ success: true, result: data });
+        })
+        .catch((err) => {
+          console.error("[ShadowSense BG] Override submission failed:", err.message);
+          sendResponse({ success: false, error: err.message });
+        });
+      return true;
+    }
+
     return false;
   }
 );

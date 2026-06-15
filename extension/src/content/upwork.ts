@@ -176,8 +176,9 @@ function detectSenderRole(row: Element): "self" | "other" {
       lower.includes("self") ||
       lower.includes("own") ||
       lower.includes("outgoing") ||
-      lower.includes("sent") ||
-      lower.includes("me")
+      lower.includes("sent by me") ||
+      lower.includes("sent by myself") ||
+      /\bme\b/i.test(signal)
     ) {
       return "self";
     }
@@ -190,7 +191,8 @@ function detectSenderRole(row: Element): "self" | "other" {
     lowerClass.includes("self") ||
     lowerClass.includes("own") ||
     lowerClass.includes("outgoing") ||
-    lowerClass.includes("sent") ||
+    lowerClass.includes("sent by me") ||
+    lowerClass.includes("sent by myself") ||
     /\bme\b/i.test(className) ||
     lowerClass.includes("is-me") ||
     lowerClass.includes("sender-me")
@@ -467,6 +469,10 @@ class UpworkChatObserver {
       this.showOfflineBadge();
     }, NOTIFY_TIMEOUT_MS);
 
+    // Get latest message text from the other party for override feedback mapping
+    const incomingMessages = messages.filter((m) => m.senderRole === "other");
+    const latestText = incomingMessages.length > 0 ? incomingMessages[incomingMessages.length - 1].text : "";
+
     try {
       chrome.runtime.sendMessage(
         { type: "UPWORK_MESSAGES_CAPTURED", payload: messages },
@@ -477,12 +483,25 @@ class UpworkChatObserver {
             this.showOfflineBadge();
             return;
           }
-          if (response?.level === 'high-risk') {
-            this.injectResponseTemplates([
-              "Thanks, but I need to verify this request with Upwork support first.",
-              "I'm only able to accept files through the official Upwork platform. Please use the attachment feature here.",
-              "I prefer to keep all communication within Upwork to protect both of us. Let's continue here.",
-            ]);
+          if (response && response.success) {
+            // If response indicates high-risk, inject response templates
+            if (response.level === 'high-risk') {
+              this.injectResponseTemplates([
+                "Thanks, but I need to verify this request with Upwork support first.",
+                "I'm only able to accept files through the official Upwork platform. Please use the attachment feature here.",
+                "I prefer to keep all communication within Upwork to protect both of us. Let's continue here.",
+              ]);
+            }
+            // Inject in-chat intervention overlay
+            this.injectInterventionOverlay(
+              response.trust_score,
+              response.level,
+              response.reasons,
+              response.analysis_id,
+              latestText
+            );
+          } else if (response && !response.success) {
+            this.showOfflineBadge();
           }
         }
       );
@@ -674,6 +693,394 @@ class UpworkChatObserver {
     setTimeout(() => container.remove(), 30_000);
 
     console.log('[ShadowSense] Response templates injected below chat input.');
+  }
+
+  private ensureStyles(): void {
+    if (document.getElementById('ss-intervention-styles')) return;
+    const style = document.createElement('style');
+    style.id = 'ss-intervention-styles';
+    style.textContent = `
+      :root {
+        --ss-color-risk-bg: #fcebeb;
+        --ss-color-risk-border: #e24b4a55;
+        --ss-color-risk-text: #a32d2d;
+        --ss-color-risk-primary: #e24b4a;
+
+        --ss-color-warn-bg: #faeeda;
+        --ss-color-warn-border: #ef9f2755;
+        --ss-color-warn-text: #854f0b;
+        --ss-color-warn-primary: #ba7517;
+
+        --ss-color-clear-bg: #e1f5ee;
+        --ss-color-clear-border: #1d9e7555;
+        --ss-color-clear-text: #0f6e56;
+        --ss-color-clear-primary: #1d9e75;
+
+        --ss-border-radius-sm: 6px;
+        --ss-border-radius-md: 10px;
+        --ss-border-radius-lg: 16px;
+      }
+
+      .ss-intervention-wrapper {
+        border: 1.5px dashed var(--ss-color-risk-primary) !important;
+        border-radius: var(--ss-border-radius-lg) !important;
+        background: #fff5f5 !important;
+        overflow: hidden !important;
+        margin-bottom: 16px !important;
+        margin-top: 16px !important;
+        font-family: 'Plus Jakarta Sans', system-ui, -apple-system, sans-serif !important;
+        box-shadow: 0 4px 12px rgba(0,0,0,0.04) !important;
+        transition: all 0.3s ease !important;
+        width: 100% !important;
+        box-sizing: border-box !important;
+      }
+      .ss-intervention-wrapper.ss-advisory {
+        border-color: var(--ss-color-warn-primary) !important;
+        background: #fffcfa !important;
+      }
+      .ss-intervention-banner {
+        background: var(--ss-color-risk-primary) !important;
+        color: white !important;
+        padding: 8px 14px !important;
+        display: flex !important;
+        align-items: center !important;
+        justify-content: space-between !important;
+        font-size: 11px !important;
+        font-weight: 600 !important;
+      }
+      .ss-intervention-wrapper.ss-advisory .ss-intervention-banner {
+        background: var(--ss-color-warn-primary) !important;
+      }
+      .ss-intervention-banner-left {
+        display: flex !important;
+        align-items: center !important;
+        gap: 6px !important;
+      }
+      .ss-intervention-body {
+        padding: 12px 14px !important;
+        background: #fff8f8 !important;
+      }
+      .ss-intervention-wrapper.ss-advisory .ss-intervention-body {
+        background: #fffdfb !important;
+      }
+      .ss-intervention-title {
+        font-size: 13px !important;
+        font-weight: 700 !important;
+        color: var(--ss-color-risk-text) !important;
+        margin-bottom: 4px !important;
+      }
+      .ss-intervention-wrapper.ss-advisory .ss-intervention-title {
+        color: var(--ss-color-warn-text) !important;
+      }
+      .ss-intervention-desc {
+        font-size: 12px !important;
+        color: #632222 !important;
+        line-height: 1.4 !important;
+        margin-bottom: 10px !important;
+      }
+      .ss-intervention-wrapper.ss-advisory .ss-intervention-desc {
+        color: #633e14 !important;
+        margin-bottom: 0px !important;
+      }
+      .ss-intervention-actions {
+        display: flex !important;
+        gap: 8px !important;
+      }
+      .ss-inter-btn-white {
+        background: white !important;
+        border: 1px solid var(--ss-color-risk-border) !important;
+        color: var(--ss-color-risk-text) !important;
+        font-size: 11px !important;
+        padding: 6px 12px !important;
+        border-radius: var(--ss-border-radius-sm) !important;
+        font-weight: 600 !important;
+        cursor: pointer !important;
+        transition: background 0.2s !important;
+      }
+      .ss-inter-btn-white:hover {
+        background: #fff1f1 !important;
+      }
+      .ss-inter-btn-accent {
+        background: var(--ss-color-risk-primary) !important;
+        color: white !important;
+        border: none !important;
+        font-size: 11px !important;
+        padding: 6px 12px !important;
+        border-radius: var(--ss-border-radius-sm) !important;
+        font-weight: 600 !important;
+        cursor: pointer !important;
+        transition: background 0.2s !important;
+      }
+      .ss-inter-btn-accent:hover {
+        background: #cc3f3e !important;
+      }
+      .ss-floating-mini-badge {
+        align-self: center !important;
+        display: inline-flex !important;
+        align-items: center !important;
+        gap: 8px !important;
+        background: var(--ss-color-clear-bg) !important;
+        border: 1px solid var(--ss-color-clear-border) !important;
+        border-radius: 100px !important;
+        padding: 4px 16px !important;
+        font-size: 12px !important;
+        font-weight: 600 !important;
+        color: var(--ss-color-clear-text) !important;
+        box-shadow: 0 1px 2px rgba(0,0,0,0.05) !important;
+        margin-bottom: 16px !important;
+        margin-top: 16px !important;
+        font-family: 'Plus Jakarta Sans', system-ui, -apple-system, sans-serif !important;
+      }
+      .ss-high-risk-input-border {
+        border: 2px dashed var(--ss-color-risk-primary) !important;
+        border-radius: var(--ss-border-radius-md) !important;
+        position: relative !important;
+      }
+      .ss-input-blocking-overlay {
+        position: absolute !important;
+        top: 0 !important;
+        left: 0 !important;
+        right: 0 !important;
+        bottom: 0 !important;
+        background: rgba(252, 235, 235, 0.82) !important;
+        backdrop-filter: blur(1.5px) !important;
+        z-index: 10000 !important;
+        display: flex !important;
+        align-items: center !important;
+        justify-content: center !important;
+        cursor: not-allowed !important;
+        pointer-events: all !important;
+        border-radius: inherit !important;
+        font-family: 'Plus Jakarta Sans', system-ui, -apple-system, sans-serif !important;
+        padding: 8px !important;
+        box-sizing: border-box !important;
+      }
+      .ss-blocking-text {
+        color: var(--ss-color-risk-text) !important;
+        font-size: 12px !important;
+        font-weight: 700 !important;
+        text-align: center !important;
+        display: flex !important;
+        align-items: center !important;
+        gap: 6px !important;
+      }
+      .ss-dismiss-btn {
+        background: none !important;
+        border: none !important;
+        cursor: pointer !important;
+        font-size: 12px !important;
+        color: white !important;
+        padding: 0 !important;
+        font-weight: bold !important;
+      }
+    `;
+    document.head.appendChild(style);
+  }
+
+  private cleanInterventions(): void {
+    // Remove wrapper cards and badges
+    document.querySelectorAll('.ss-intervention-wrapper, .ss-floating-mini-badge').forEach((el) => el.remove());
+    // Remove blocking overlays
+    document.querySelectorAll('.ss-input-blocking-overlay').forEach((el) => el.remove());
+    // Remove border highlights
+    document.querySelectorAll('.ss-high-risk-input-border').forEach((el) => {
+      el.classList.remove('ss-high-risk-input-border');
+    });
+  }
+
+  private injectInterventionOverlay(
+    score: number,
+    level: string,
+    reasons: string[],
+    analysisId: string,
+    messageText: string
+  ): void {
+    this.ensureStyles();
+    this.cleanInterventions();
+
+    const root = this.chatContainer ?? document;
+    const rows = queryAll<Element>(root, MESSAGE_ROW_SELECTORS);
+    if (rows.length === 0) return;
+
+    // Find the last incoming message row
+    let targetRow: Element | null = null;
+    for (let i = rows.length - 1; i >= 0; i--) {
+      if (detectSenderRole(rows[i]) === "other") {
+        targetRow = rows[i];
+        break;
+      }
+    }
+    if (!targetRow) {
+      targetRow = rows[rows.length - 1];
+    }
+
+    if (!targetRow || !targetRow.parentElement) return;
+
+    const reasonsText = reasons && reasons.length > 0
+      ? reasons.map(r => `• ${r}`).join('<br>')
+      : "Suspicious metadata or behavioral characteristics detected.";
+
+    if (level === 'high-risk') {
+      // Create High-Risk Card
+      const overlay = document.createElement('div');
+      overlay.className = 'ss-intervention-wrapper';
+      overlay.innerHTML = `
+        <div class="ss-intervention-banner">
+          <div class="ss-intervention-banner-left">
+            <span>⚠️ ShadowSense Agentic Shield Active</span>
+          </div>
+          <span style="font-size:9px" class="text-mono">Blocked</span>
+        </div>
+        <div class="ss-intervention-body">
+          <div class="ss-intervention-title">Shield Block Applied (Trust Score: ${score})</div>
+          <div class="ss-intervention-desc">
+            ${reasonsText}
+          </div>
+          <div class="ss-intervention-actions">
+            <button class="ss-inter-btn-white" id="ss-report-btn">Report Scam</button>
+            <button class="ss-inter-btn-accent" id="ss-bypass-btn">Bypass Warning</button>
+          </div>
+        </div>
+      `;
+
+      // Insert overlay above the last incoming message row
+      targetRow.parentElement.insertBefore(overlay, targetRow);
+
+      // Add Event Listeners
+      overlay.querySelector('#ss-bypass-btn')?.addEventListener('click', () => {
+        chrome.runtime.sendMessage({
+          type: "SUBMIT_OVERRIDE_FEEDBACK",
+          payload: {
+            analysis_id: analysisId,
+            pattern_text: messageText || "Override flagged conversation",
+            user_id: "anonymous",
+            trust_score: score
+          }
+        }, (res) => {
+          console.log("[ShadowSense] Override submitted:", res);
+          this.cleanInterventions();
+        });
+      });
+
+      overlay.querySelector('#ss-report-btn')?.addEventListener('click', () => {
+        chrome.runtime.sendMessage({
+          type: "SUBMIT_GENERAL_FEEDBACK",
+          payload: {
+            analysis_id: analysisId,
+            user_feedback: "report",
+            was_accurate: true,
+            additional_context: { platform: "upwork", score }
+          }
+        }, (res) => {
+          console.log("[ShadowSense] Report submitted:", res);
+          const body = overlay.querySelector('.ss-intervention-body');
+          if (body) {
+            body.innerHTML = `
+              <div class="ss-intervention-title" style="color: var(--ss-color-clear-text)">Thank you for reporting!</div>
+              <div class="ss-intervention-desc" style="color: var(--ss-color-clear-text)">The threat signature has been flagged for analysis. You can now close this conversation safely.</div>
+            `;
+          }
+        });
+      });
+
+      // Block Input Box
+      const INPUT_SELECTORS = [
+        '[data-testid*="message-input"]',
+        '[data-testid*="chat-input"]',
+        '[aria-label*="message" i][contenteditable]',
+        '[role="textbox"]',
+        'textarea[placeholder*="message" i]',
+        'textarea[placeholder*="reply" i]',
+        'textarea[placeholder*="write" i]',
+        'div[contenteditable="true"]',
+      ] as const;
+
+      let inputEl: Element | null = null;
+      for (const sel of INPUT_SELECTORS) {
+        try {
+          inputEl = document.querySelector(sel);
+          if (inputEl) break;
+        } catch {}
+      }
+
+      if (inputEl) {
+        const inputParent = inputEl.parentElement;
+        if (inputParent) {
+          inputParent.classList.add('ss-high-risk-input-border');
+          const originalPosition = window.getComputedStyle(inputParent).position;
+          if (originalPosition !== 'relative' && originalPosition !== 'absolute' && originalPosition !== 'fixed') {
+            (inputParent as HTMLElement).style.position = 'relative';
+          }
+
+          const inputOverlay = document.createElement('div');
+          inputOverlay.className = 'ss-input-blocking-overlay';
+          inputOverlay.innerHTML = `
+            <div class="ss-blocking-text">
+              ⚠️ Typing disabled. Please review safety warning above.
+            </div>
+          `;
+          inputParent.appendChild(inputOverlay);
+        }
+      }
+
+    } else if (level === 'advisory') {
+      // Create Advisory Card
+      const overlay = document.createElement('div');
+      overlay.className = 'ss-intervention-wrapper ss-advisory';
+      overlay.innerHTML = `
+        <div class="ss-intervention-banner">
+          <div class="ss-intervention-banner-left">
+            <span>⚠️ ShadowSense Advisory Active</span>
+          </div>
+          <button class="ss-dismiss-btn" id="ss-advisory-dismiss">Dismiss ×</button>
+        </div>
+        <div class="ss-intervention-body">
+          <div class="ss-intervention-title">Caution (Trust Score: ${score})</div>
+          <div class="ss-intervention-desc">
+            ${reasonsText}
+          </div>
+          <div class="ss-intervention-actions" style="margin-top: 8px;">
+            <button class="ss-inter-btn-white" id="ss-advisory-report" style="border-color: var(--ss-color-warn-border); color: var(--ss-color-warn-text); background: white;">Report Client</button>
+          </div>
+        </div>
+      `;
+
+      targetRow.parentElement.insertBefore(overlay, targetRow);
+
+      overlay.querySelector('#ss-advisory-dismiss')?.addEventListener('click', () => {
+        this.cleanInterventions();
+      });
+
+      overlay.querySelector('#ss-advisory-report')?.addEventListener('click', () => {
+        chrome.runtime.sendMessage({
+          type: "SUBMIT_GENERAL_FEEDBACK",
+          payload: {
+            analysis_id: analysisId,
+            user_feedback: "report",
+            was_accurate: true,
+            additional_context: { platform: "upwork", score }
+          }
+        }, (res) => {
+          console.log("[ShadowSense] Report submitted:", res);
+          const body = overlay.querySelector('.ss-intervention-body');
+          if (body) {
+            body.innerHTML = `
+              <div class="ss-intervention-title" style="color: var(--ss-color-clear-text)">Thank you for reporting!</div>
+              <div class="ss-intervention-desc" style="color: var(--ss-color-clear-text)">The warning has been reported to the community moderation system.</div>
+            `;
+          }
+        });
+      });
+
+    } else if (level === 'clear') {
+      // Create Minimal Badge
+      const badge = document.createElement('div');
+      badge.className = 'ss-floating-mini-badge';
+      badge.innerHTML = `
+        <span>🛡 Checked by ShadowSense: Safe Client (${score}/100)</span>
+      `;
+      targetRow.parentElement.insertBefore(badge, targetRow);
+    }
   }
 }
 
