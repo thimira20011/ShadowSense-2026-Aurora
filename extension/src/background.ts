@@ -181,9 +181,10 @@ chrome.runtime.onMessage.addListener(
       return true; // keep message channel open for async response
     }
 
-    // ── Fiverr chat messages captured ─────────────────────────────────────────
-    if (request.type === "FIVERR_MESSAGES_CAPTURED") {
+    // ── Fiverr or Upwork chat messages captured ───────────────────────────────
+    if (request.type === "FIVERR_MESSAGES_CAPTURED" || request.type === "UPWORK_MESSAGES_CAPTURED") {
       const messages = (request.payload as CapturedMessage[]) ?? [];
+      const platformName = request.type === "FIVERR_MESSAGES_CAPTURED" ? "Fiverr" : "Upwork";
 
       if (messages.length === 0) {
         sendResponse({ success: true, count: 0 });
@@ -191,7 +192,7 @@ chrome.runtime.onMessage.addListener(
       }
 
       console.log(
-        `[ShadowSense BG] Received ${messages.length} captured message(s) from Fiverr content script.`
+        `[ShadowSense BG] Received ${messages.length} captured message(s) from ${platformName} content script.`
       );
 
       // Analyse the last message from the other party (most recent threat signal)

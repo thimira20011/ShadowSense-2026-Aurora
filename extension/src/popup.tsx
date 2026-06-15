@@ -11,6 +11,7 @@ import React, { useEffect, useState } from "react";
 import ReactDOM from "react-dom/client";
 import { PopupPanel } from "./components/PopupPanel";
 import { useSimulation } from "./hooks/useSimulation";
+import { StoredResult } from "./types";
 import "./styles/variables.css";
 import "./styles/popup.css";
 
@@ -20,23 +21,22 @@ const CACHED_RESULT_KEY = "shadowsense_cached_result";
 /** Initial/default advisory score rendered while storage is loading. */
 const DEFAULT_SCORE = 55;
 
-interface StoredResult {
-  analysis_id: string;
-  trust_score: number;
-  level: string;
-  reasons: string[];
-  suggested_responses: string[];
-  timestamp: number;
-  message_id: string;
-  message_text: string;
-}
-
 export const Popup: React.FC = () => {
-  const [score, setScore]       = useState<number>(DEFAULT_SCORE);
+  const [platform, setPlatform] = useState<"fiverr" | "upwork">("fiverr");
   const [messageId, setMessageId] = useState<string>("no-scan-yet");
   const [loading, setLoading]   = useState<boolean>(true);
+  const { state, updateScore } = useSimulation(DEFAULT_SCORE, platform);
 
-  const { state, updateScore } = useSimulation(DEFAULT_SCORE);
+  useEffect(() => {
+    chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
+      const url = tabs[0]?.url || "";
+      if (url.includes("upwork.com")) {
+        setPlatform("upwork");
+      } else {
+        setPlatform("fiverr");
+      }
+    });
+  }, []);
 
   // ── 1. Load stored result on mount ─────────────────────────────────────────
   useEffect(() => {
@@ -47,11 +47,9 @@ export const Popup: React.FC = () => {
         const cachedScore = stored[CACHED_SCORE_KEY] as number | undefined;
 
         if (cached) {
-          setScore(cached.trust_score);
           setMessageId(cached.message_id);
-          updateScore(cached.trust_score);
+          updateScore(cached.trust_score, cached);
         } else if (cachedScore !== undefined) {
-          setScore(cachedScore);
           updateScore(cachedScore);
         }
         // If nothing stored, keep the advisory default (55)
@@ -70,12 +68,10 @@ export const Popup: React.FC = () => {
 
       if (changes[CACHED_RESULT_KEY]?.newValue) {
         const result = changes[CACHED_RESULT_KEY].newValue as StoredResult;
-        setScore(result.trust_score);
         setMessageId(result.message_id);
-        updateScore(result.trust_score);
+        updateScore(result.trust_score, result);
       } else if (changes[CACHED_SCORE_KEY]?.newValue !== undefined) {
         const newScore = changes[CACHED_SCORE_KEY].newValue as number;
-        setScore(newScore);
         updateScore(newScore);
       }
     };
@@ -96,7 +92,7 @@ export const Popup: React.FC = () => {
 
   return (
     <div className="popup-root">
-      <PopupPanel state={state} messageId={messageId} />
+      <PopupPanel state={state} messageId={messageId} platform={platform} />
     </div>
   );
 };

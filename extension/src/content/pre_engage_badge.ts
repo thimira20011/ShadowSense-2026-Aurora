@@ -37,8 +37,6 @@ function ensureStyles(): void {
   _stylesInjected = true;
 
   const css = `
-    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
-
     .ss-badge-wrapper {
       display: inline-flex;
       align-items: center;
