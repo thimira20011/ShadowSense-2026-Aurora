@@ -14,7 +14,8 @@
   "host_permissions": [
     "https://www.fiverr.com/*",
     "https://www.upwork.com/*",
-    "http://localhost:8000/*"
+    "http://localhost:8000/*",
+    "http://127.0.0.1:8000/*"
   ],
   "background": {
     "service_worker": "background.js",

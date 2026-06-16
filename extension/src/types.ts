@@ -40,7 +40,7 @@ export interface SimulationState {
   reasons: DefenseReason[];
   suggestedResponse: string;
   isStreaming: boolean;
-  suggestedTemplates?: string[];
+  suggestedTemplates: string[];
 }
 
 export function getThreatLevel(score: number): ThreatLevel {

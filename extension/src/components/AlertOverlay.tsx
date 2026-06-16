@@ -1,23 +1,23 @@
 /**
  * AlertOverlay.tsx
  * ─────────────────────────────────────────────────────────────────────────────
- * Tiered intervention overlay positioned absolutely over the Fiverr chat window.
+ * Tiered intervention overlay positioned inside the popup panel.
  *
- * Score ranges (Week 4 tuned thresholds):
+ * Score ranges (synced with backend ShieldAgent._classify()):
  *   Clear     70–100 → No overlay (silent mode)
- *   Advisory  30–69  → Yellow slide-in banner — "This conversation shows moderate risk signals"
- *   High-risk  0–29  → Red rising modal blocking chat input — "High-risk conversation detected"
+ *   Advisory  30–69  → Amber slide-in banner
+ *   High-risk  0–29  → Red rising modal blocking chat input
  *
- * Override feedback is POSTed to /api/feedback/override (triggers ChromaDB benign-pattern learning):
+ * Override flow:
+ *   POST /api/feedback/override  →  triggers ChromaDB benign-pattern learning
  *   { analysis_id, pattern_text, trust_score }
  *
- * False-positive reports are POSTed to /api/feedback (general accuracy log):
+ * False-positive flow:
+ *   POST /api/feedback/  →  general accuracy log (no ML effect)
  *   { analysis_id, user_feedback: "false_positive", was_accurate: false }
  *
- * Bug fixes applied:
- *   - Retry button appears when feedback POST fails
- *   - Escape key dismisses the modal (keyboard accessibility)
- *   - Override + Continue now correctly calls /api/feedback/override
+ * Popup pages have host_permissions for http://localhost:8000/* so direct
+ * fetch() calls are permitted here.
  */
 
 import React, { useState, useCallback, useEffect } from 'react';
@@ -34,86 +34,101 @@ import type { ThreatLevel } from '../types';
 // ─── Shared types ─────────────────────────────────────────────────────────────
 
 export interface OverridePayload {
-  action: 'override' | 'false_positive';
-  message_id: string;
+  action:      'override' | 'false_positive';
+  message_id:  string;
   trust_score: number;
-  timestamp: string;
+  timestamp:   string;
 }
 
 export interface AlertOverlayProps {
-  score: number;
-  level: ThreatLevel;
-  messageId?: string;
-  onDismiss?: () => void;
+  score:           number;
+  level:           ThreatLevel;
+  messageId?:      string;
+  onDismiss?:      () => void;
   onFeedbackSent?: (payload: OverridePayload) => void;
 }
 
-// ─── Feedback API ─────────────────────────────────────────────────────────────
+// ─── Backend constants ────────────────────────────────────────────────────────
 
-const BACKEND_BASE = 'http://127.0.0.1:8000';
+const BACKEND_BASE      = 'http://127.0.0.1:8000';
+const FEEDBACK_TIMEOUT  = 8_000; // ms
 
-/**
- * POST to /api/feedback/override — triggers ChromaDB benign-pattern learning.
- * Called when the user clicks "Override + Continue" on a high-risk alert.
- */
-async function postOverride(analysisId: string, patternText: string, trustScore: number): Promise<void> {
-  const res = await fetch(`${BACKEND_BASE}/api/feedback/override`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      analysis_id: analysisId,
-      pattern_text: patternText,
-      trust_score:  trustScore,
-    }),
-  });
-  if (!res.ok) throw new Error(`Override API returned ${res.status}`);
-  console.info('[ShadowSense] ✓ Override sent to ChromaDB learning pipeline — status', res.status);
+// ─── API helpers ─────────────────────────────────────────────────────────────
+
+/** POST to /api/feedback/override — triggers ChromaDB benign-pattern learning. */
+async function postOverride(
+  analysisId:  string,
+  patternText: string,
+  trustScore:  number
+): Promise<void> {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), FEEDBACK_TIMEOUT);
+  try {
+    const res = await fetch(`${BACKEND_BASE}/api/feedback/override`, {
+      method:  'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        analysis_id:  analysisId,
+        pattern_text: patternText,
+        trust_score:  trustScore,
+      }),
+      signal: controller.signal,
+    });
+    if (!res.ok) throw new Error(`Override API returned HTTP ${res.status}`);
+    console.info('[ShadowSense] ✓ Override sent — status', res.status);
+  } finally {
+    clearTimeout(timer);
+  }
 }
 
-/**
- * POST to /api/feedback — general accuracy log (false positives, etc.).
- * Does NOT trigger ChromaDB pattern learning.
- */
+/** POST to /api/feedback/ — general accuracy log (no ML side-effect). */
 async function postFeedback(payload: OverridePayload): Promise<void> {
-  const res = await fetch(`${BACKEND_BASE}/api/feedback`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      analysis_id: payload.message_id,
-      user_feedback: payload.action,
-      was_accurate: false,
-      additional_context: {
-        action: payload.action,
-        message_id: payload.message_id,
-        trust_score: payload.trust_score,
-        timestamp: payload.timestamp,
-      },
-    }),
-  });
-  if (!res.ok) throw new Error(`Feedback API returned ${res.status}`);
-  console.info('[ShadowSense] ✓ Feedback received by backend — status', res.status, payload);
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), FEEDBACK_TIMEOUT);
+  try {
+    const res = await fetch(`${BACKEND_BASE}/api/feedback/`, {
+      method:  'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        analysis_id:       payload.message_id,
+        user_feedback:     payload.action,
+        was_accurate:      false,
+        additional_context: {
+          action:      payload.action,
+          message_id:  payload.message_id,
+          trust_score: payload.trust_score,
+          timestamp:   payload.timestamp,
+        },
+      }),
+      signal: controller.signal,
+    });
+    if (!res.ok) throw new Error(`Feedback API returned HTTP ${res.status}`);
+    console.info('[ShadowSense] ✓ Feedback received — status', res.status);
+  } finally {
+    clearTimeout(timer);
+  }
 }
 
-// ─── Advisory Banner (score 40–69) ────────────────────────────────────────────
+// ─── Advisory Banner (score 30–69) ───────────────────────────────────────────
 
 const AdvisoryBanner: React.FC<{
-  score: number;
-  messageId: string;
-  onDismiss: () => void;
-  onFeedbackSent: (p: OverridePayload) => void;
+  score:           number;
+  messageId:       string;
+  onDismiss:       () => void;
+  onFeedbackSent:  (p: OverridePayload) => void;
 }> = ({ score, messageId, onDismiss, onFeedbackSent }) => {
-  const [sending, setSending]   = useState(false);
-  const [done, setDone]         = useState(false);
-  const [hasFailed, setFailed]  = useState(false);
+  const [sending,   setSending]  = useState(false);
+  const [done,      setDone]     = useState(false);
+  const [hasFailed, setFailed]   = useState(false);
 
   const handleFalsePositive = useCallback(async () => {
     setSending(true);
     setFailed(false);
     const payload: OverridePayload = {
-      action: 'false_positive',
-      message_id: messageId,
+      action:      'false_positive',
+      message_id:  messageId,
       trust_score: score,
-      timestamp: new Date().toISOString(),
+      timestamp:   new Date().toISOString(),
     };
     try {
       await postFeedback(payload);
@@ -121,7 +136,7 @@ const AdvisoryBanner: React.FC<{
       setDone(true);
       setTimeout(onDismiss, 600);
     } catch (err) {
-      console.warn('[ShadowSense] Feedback POST failed (offline?):', err);
+      console.warn('[ShadowSense] Advisory feedback failed:', err);
       setFailed(true);
     } finally {
       setSending(false);
@@ -153,7 +168,7 @@ const AdvisoryBanner: React.FC<{
         </p>
         {hasFailed && (
           <p className="ao-feedback-error" role="alert">
-            ⚠ Feedback failed — no server connection
+            ⚠ Feedback failed — is the backend running on port 8000?
           </p>
         )}
       </div>
@@ -203,48 +218,42 @@ const AdvisoryBanner: React.FC<{
   );
 };
 
-// ─── High-Risk Modal (score 0–39) ─────────────────────────────────────────────
+// ─── High-Risk Modal (score 0–29) ─────────────────────────────────────────────
 
 const HighRiskModal: React.FC<{
-  score: number;
-  messageId: string;
-  onDismiss: () => void;
-  onFeedbackSent: (p: OverridePayload) => void;
+  score:           number;
+  messageId:       string;
+  onDismiss:       () => void;
+  onFeedbackSent:  (p: OverridePayload) => void;
 }> = ({ score, messageId, onDismiss, onFeedbackSent }) => {
-  const [sending, setSending]     = useState(false);
+  const [sending,    setSending]    = useState(false);
   const [overridden, setOverridden] = useState(false);
-  const [hasFailed, setFailed]    = useState(false);
+  const [hasFailed,  setFailed]     = useState(false);
 
-  // Escape key dismisses the modal
+  // Escape key closes the modal
   useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') onDismiss();
-    };
-    document.addEventListener('keydown', handleKeyDown);
-    return () => document.removeEventListener('keydown', handleKeyDown);
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onDismiss(); };
+    document.addEventListener('keydown', onKey);
+    return () => document.removeEventListener('keydown', onKey);
   }, [onDismiss]);
 
   const handleOverride = useCallback(async () => {
     setSending(true);
     setFailed(false);
     const payload: OverridePayload = {
-      action: 'override',
-      message_id: messageId,
+      action:      'override',
+      message_id:  messageId,
       trust_score: score,
-      timestamp: new Date().toISOString(),
+      timestamp:   new Date().toISOString(),
     };
-    console.log('[ShadowSense] Override action — calling /api/feedback/override for ChromaDB learning:', {
-      analysis_id: messageId,
-      trust_score: score,
-    });
     try {
-      // Use /api/feedback/override (not /api/feedback) to trigger ChromaDB benign-pattern learning
+      // Sends override event to ChromaDB learning pipeline
       await postOverride(messageId, `override:${messageId}`, score);
       onFeedbackSent(payload);
       setOverridden(true);
       setTimeout(onDismiss, 500);
     } catch (err) {
-      console.warn('[ShadowSense] Override POST failed (offline?):', err);
+      console.warn('[ShadowSense] Override POST failed:', err);
       setFailed(true);
     } finally {
       setSending(false);
@@ -255,7 +264,7 @@ const HighRiskModal: React.FC<{
 
   return (
     <>
-      {/* Blurred backdrop — blocks interaction with chat input below */}
+      {/* Blurred backdrop */}
       <div
         className="ao-backdrop"
         role="presentation"
@@ -283,18 +292,21 @@ const HighRiskModal: React.FC<{
         </h2>
 
         <p id="ao-modal-desc" className="ao-modal-body">
-          ShadowSense has blocked your reply. This conversation exhibits
-          patterns associated with fraud or social engineering.
+          ShadowSense has flagged this conversation. It exhibits patterns
+          associated with fraud or social engineering.
         </p>
 
         {/* Score badge */}
-        <div className="ao-modal-score" aria-label={`Trust score: ${score} out of 100`}>
+        <div
+          className="ao-modal-score"
+          aria-label={`Trust score: ${score} out of 100`}
+        >
           <span className="ao-modal-score-num">{score}</span>
           <span className="ao-modal-score-slash">/ 100</span>
           <span className="ao-modal-score-label">Trust Score</span>
         </div>
 
-        {/* Feedback error message + retry */}
+        {/* Error + retry */}
         {hasFailed && (
           <p className="ao-feedback-error" role="alert">
             ⚠ Server unreachable — feedback not sent.{' '}
@@ -309,31 +321,29 @@ const HighRiskModal: React.FC<{
         )}
 
         {/* Primary CTA */}
-        {!hasFailed && (
-          <button
-            id="btn-override-continue"
-            className="ao-btn ao-btn-override"
-            onClick={handleOverride}
-            disabled={sending}
-            aria-busy={sending}
-          >
-            {sending ? (
-              <>
-                <span className="ao-spinner" aria-hidden="true">⟳</span>
-                <span>Sending feedback…</span>
-              </>
-            ) : (
-              <>
-                <IconSend size={13} strokeWidth={2} />
-                <span>Override + Continue</span>
-              </>
-            )}
-          </button>
-        )}
+        <button
+          id="btn-override-continue"
+          className="ao-btn ao-btn-override"
+          onClick={handleOverride}
+          disabled={sending}
+          aria-busy={sending}
+        >
+          {sending ? (
+            <>
+              <span className="ao-spinner" aria-hidden="true">⟳</span>
+              <span>Sending feedback…</span>
+            </>
+          ) : (
+            <>
+              <IconSend size={13} strokeWidth={2} />
+              <span>Override + Continue</span>
+            </>
+          )}
+        </button>
 
         <p className="ao-modal-disclaimer" role="note">
-          Clicking Override logs this decision to the ShadowSense feedback system
-          to help improve detection accuracy.
+          Clicking Override logs this decision to the ShadowSense feedback
+          system to help improve detection accuracy.
         </p>
       </div>
     </>
@@ -345,11 +355,11 @@ const HighRiskModal: React.FC<{
 export const AlertOverlay: React.FC<AlertOverlayProps> = ({
   score,
   level,
-  messageId = 'unknown',
-  onDismiss = () => {},
-  onFeedbackSent = () => {},
+  messageId       = 'unknown',
+  onDismiss       = () => {},
+  onFeedbackSent  = () => {},
 }) => {
-  // Clear (70–100): silent mode, no overlay rendered
+  // Clear (70–100): silent mode
   if (level === 'clear') return null;
 
   if (level === 'advisory') {
@@ -363,7 +373,7 @@ export const AlertOverlay: React.FC<AlertOverlayProps> = ({
     );
   }
 
-  // High-risk (0–39)
+  // High-risk (0–29)
   return (
     <HighRiskModal
       score={score}
