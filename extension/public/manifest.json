@@ -26,7 +26,7 @@
   },
   "content_scripts": [
     {
-      "matches": ["https://www.fiverr.com/inbox*", "https://www.fiverr.com/inbox/*"],
+      "matches": ["https://www.fiverr.com/*"],
       "js": ["content/fiverr.js"],
       "run_at": "document_idle"
     },
@@ -56,9 +56,7 @@
     },
     {
       "matches": [
-        "https://www.upwork.com/ab/messages/*",
-        "https://www.upwork.com/messages/*",
-        "https://www.upwork.com/nx/messages/*"
+        "https://www.upwork.com/*"
       ],
       "js": ["content/upwork.js"],
       "run_at": "document_idle"

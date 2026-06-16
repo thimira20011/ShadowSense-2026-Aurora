@@ -1,8 +1,8 @@
 # Test Results
 
-> **Last updated**: 2026-06-12 18:19  
+> **Last updated**: 2026-06-15 20:31  
 > **Mode**: Live run  
-> **Scenarios**: 27
+> **Scenarios**: 30
 
 | # | Scenario ID | Name | Expected Range | Actual Score | Status | Notes |
 |---|---|---|---|---|---|---|
@@ -11,11 +11,11 @@
 | 3 | `generic_threat_003` | Urgency and Pressure Tactics | 0-39 | 45 | **FAIL** |  |
 | 4 | `identity_theft_004` | Information Harvesting | 0-39 | 68 | **FAIL** |  |
 | 5 | `fake_job_005` | Fake Remote Job with Bank Account Harvesting | 0-39 | 41 | **FAIL** |  |
-| 6 | `crypto_006` | Crypto Seed Phrase Theft via Investment Scam | 0-39 | 40 | **FAIL** |  |
-| 7 | `overpayment_007` | Fake Overpayment Refund Scam | 0-39 | 39 | **PASS** |  |
+| 6 | `crypto_006` | Crypto Seed Phrase Theft via Investment Scam | 0-39 | 36 | **PASS** |  |
+| 7 | `overpayment_007` | Fake Overpayment Refund Scam | 0-39 | 43 | **FAIL** |  |
 | 8 | `advance_fee_008` | Fake Background Check Fee Scam | 0-39 | 43 | **FAIL** |  |
 | 9 | `phishing_009` | Fake Fiverr Cashback Reward Phishing | 0-39 | 39 | **PASS** |  |
-| 10 | `off_platform_010` | NDA Excuse to Move Off-Platform | 0-39 | 48 | **FAIL** |  |
+| 10 | `off_platform_010` | NDA Excuse to Move Off-Platform | 0-39 | 53 | **FAIL** |  |
 | 11 | `survey_phishing_011` | Fake Survey SSN Phishing | 0-39 | 37 | **PASS** |  |
 | 12 | `wire_pii_012` | Wire Transfer PII Harvesting via Off-Platform Redirect | 0-39 | 42 | **FAIL** |  |
 | 13 | `influencer_013` | Fake Brand Collaboration Customs Fee Scam | 0-39 | 39 | **PASS** |  |
@@ -33,6 +33,9 @@
 | 25 | `legitimate_025` | Genuine Logo Design Enquiry | 70-100 | 90 | **PASS** |  |
 | 26 | `borderline_026` | Pushy Deadline with Off-Platform Hint | 40-69 | 57 | **PASS** |  |
 | 27 | `edge_case_027` | Long Unicode Mixed-Language Stress Test | 0-100 | 43 | **PASS** |  |
+| 28 | `crypto_028` | Crypto Gas Fee Reimbursed Job | 0-29 | 51 | **FAIL** |  |
+| 29 | `fake_contractor_029` | Hosting Referral Contractor Redirect | 0-29 | 54 | **FAIL** |  |
+| 30 | `legitimate_030` | General Client Inquiry for Development | 70-100 | 90 | **PASS** |  |
 ---
 
 ## Intervention Tier Reference
