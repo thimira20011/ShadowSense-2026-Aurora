@@ -15,7 +15,6 @@ import {
   injectBadge,
   removeBadge,
   BADGE_INJECTED_ATTR,
-  type BadgeOptions,
   type Verdict,
 } from "./pre_engage_badge";
 
