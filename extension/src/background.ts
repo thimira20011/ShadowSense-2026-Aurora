@@ -46,10 +46,12 @@ interface StoredResult {
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
-const API_BASE = "http://localhost:8000";
+const API_BASE = "http://127.0.0.1:8000";
 const CACHED_SCORE_KEY = "shadowsense_cached_score";
 const CACHED_RESULT_KEY = "shadowsense_cached_result";
-const ANALYSIS_TIMEOUT_MS = 10_000;
+// Ollama multi-agent pipeline can take 20-60+ seconds depending on hardware.
+// 90 s gives enough headroom for slow local inference without hanging forever.
+const ANALYSIS_TIMEOUT_MS = 90_000;
 
 // ─── Installation ─────────────────────────────────────────────────────────────
 
@@ -102,6 +104,14 @@ async function analyzeWithBackend(
     }
 
     return response.json() as Promise<BackendAnalysisResponse>;
+  } catch (err) {
+    if (err instanceof Error && err.name === "AbortError") {
+      throw new Error(
+        `Analysis timed out after ${ANALYSIS_TIMEOUT_MS / 1000}s — ` +
+        `backend may be overloaded or Ollama is not running`
+      );
+    }
+    throw err;
   } finally {
     clearTimeout(timer);
   }
@@ -195,24 +205,42 @@ chrome.runtime.onMessage.addListener(
         `[ShadowSense BG] Received ${messages.length} captured message(s) from ${platformName} content script.`
       );
 
-      // Analyse the last message from the other party (most recent threat signal)
+      // ── Build full conversation transcript for analysis ──────────────────
+      // Sending the FULL conversation (not just the last message) gives the
+      // AI pipeline much better context to detect scam patterns that span
+      // multiple turns (social engineering, rapport-building, then the ask).
       const incomingMessages = messages.filter((m) => m.senderRole === "other");
+
       if (incomingMessages.length === 0) {
-        // Only own messages — no threat analysis needed
         sendResponse({ success: true, count: 0, skipped: "own-messages-only" });
         return true;
       }
 
       const latest = incomingMessages[incomingMessages.length - 1];
 
-      analyzeWithBackend(latest)
+      // Concatenate up to 15 most recent messages as a conversation transcript
+      const transcript = messages
+        .slice(-15)
+        .map((m) => {
+          const role = m.senderRole === "other" ? `Client (${m.sender})` : `Freelancer (${m.sender})`;
+          return `${role}: ${m.text}`;
+        })
+        .join("\n---\n");
+
+      // Build the request message — use the full transcript as the text
+      // and keep the latest message's metadata (id, sender, timestamp, etc.)
+      const analysisMessage: CapturedMessage = {
+        ...latest,
+        text: transcript.slice(0, 5000), // cap at 5k chars
+      };
+
+      analyzeWithBackend(analysisMessage)
         .then((result) => storeResult(result, latest).then(() => result))
         .then((result) => {
           const level = backendLevelToFrontend(result.verdict.trust_score.level);
           console.log(
             `[ShadowSense BG] Analysis complete — score: ${result.trust_score} level: ${level}`
           );
-          // Send verdict back to content script so it can inject response templates
           sendResponse({
             success: true,
             count: messages.length,
@@ -224,7 +252,6 @@ chrome.runtime.onMessage.addListener(
         })
         .catch((err) => {
           console.error("[ShadowSense BG] Analysis failed:", err.message);
-          // Return cached score so content script can show offline badge
           chrome.storage.local.get([CACHED_SCORE_KEY], (stored) => {
             sendResponse({
               success: false,

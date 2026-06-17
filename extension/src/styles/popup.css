@@ -608,3 +608,108 @@ body {
   line-height: 1.4;
 }
 
+
+/* ══════════════════════════════════════════════════════════════════════════════
+   MISSING CLASSES — added to fix broken UI elements
+   ══════════════════════════════════════════════════════════════════════════════ */
+
+/* ── Pulsing status dot (scanning state) ── */
+.status-dot.pulsing {
+  background: var(--color-accent-light);
+  animation: indicatorPulse 1.2s infinite ease-in-out;
+}
+
+/* ── Agent chip states ── */
+.agent-card.agent-queued {
+  border-color: var(--color-border-secondary);
+  background: var(--color-bg-base);
+  opacity: 0.45;
+}
+.agent-card.agent-processing {
+  border-color: var(--color-accent-light);
+  background: var(--color-accent-bg);
+  animation: agentProcessingPulse 1.4s ease-in-out infinite;
+}
+.agent-card.agent-processing .agent-card-status {
+  color: var(--color-accent-text);
+}
+@keyframes agentProcessingPulse {
+  0%,100% { box-shadow: 0 0 0 0   rgba(123,97,255,0.0); }
+  50%      { box-shadow: 0 0 0 4px rgba(123,97,255,0.25); }
+}
+
+/* ── Backend offline banner ── */
+.offline-banner {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 7px 14px;
+  background: linear-gradient(90deg, #2d1515 0%, #3a1a1a 100%);
+  color: #fca5a5;
+  font-size: 10.5px;
+  font-weight: 600;
+  border-bottom: 1px solid rgba(226,75,74,0.3);
+  animation: advisorySlideDown 0.25s cubic-bezier(0.34,1.4,0.64,1) both;
+}
+@media (prefers-color-scheme: dark) {
+  .offline-banner {
+    background: linear-gradient(90deg, #3a1a1a 0%, #4a2020 100%);
+  }
+}
+
+/* ── "No scan yet" empty state ── */
+.no-scan-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  padding: 28px 24px 32px;
+  gap: 12px;
+}
+.no-scan-icon-ring {
+  width: 60px;
+  height: 60px;
+  border-radius: 50%;
+  background: var(--color-accent-bg);
+  border: 1.5px solid rgba(123,97,255,0.3);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  animation: pulseGlow 2.4s ease-in-out infinite;
+}
+.no-scan-title {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--color-text-primary);
+  letter-spacing: -0.01em;
+}
+.no-scan-body {
+  font-size: 11.5px;
+  color: var(--color-text-secondary);
+  line-height: 1.55;
+  max-width: 250px;
+}
+.no-scan-body strong {
+  color: var(--color-text-primary);
+  font-weight: 600;
+}
+
+/* ── Popup loading state ── */
+.popup-loading {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  padding: 40px 24px;
+  color: var(--color-text-tertiary);
+  font-size: 12px;
+}
+.popup-loading-spinner {
+  width: 22px;
+  height: 22px;
+  border: 2.5px solid var(--color-border-primary);
+  border-top-color: var(--color-accent-light);
+  border-radius: 50%;
+  animation: rotateIcon 0.7s linear infinite;
+}

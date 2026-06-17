@@ -58,8 +58,9 @@ const CACHED_SCORE_KEY = "shadowsense_cached_score";
 const MAX_MESSAGES_PER_CONVO = 500;
 /** Debounce window (ms) – prevents thrashing on rapid DOM mutations */
 const DEBOUNCE_MS = 300;
-/** Timeout before we fall back to cached score (ms) */
-const NOTIFY_TIMEOUT_MS = 3000;
+/** Timeout before we fall back to cached score (ms).
+ *  Must be >= ANALYSIS_TIMEOUT_MS in background.ts (90 s) + buffer. */
+const NOTIFY_TIMEOUT_MS = 120_000;
 
 // ─── Selector catalogue ────────────────────────────────────────────────────
 /**

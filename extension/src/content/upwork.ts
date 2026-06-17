@@ -33,34 +33,74 @@ const STORAGE_KEY = "shadowsense_upwork_messages";
 const CACHED_SCORE_KEY = "shadowsense_cached_score";
 const MAX_MESSAGES_PER_CONVO = 500;
 const DEBOUNCE_MS = 300;
-const NOTIFY_TIMEOUT_MS = 3000;
+// Match the background ANALYSIS_TIMEOUT_MS (90s) + buffer.
+// Prevents the offline badge from firing before the Ollama pipeline finishes.
+const NOTIFY_TIMEOUT_MS = 120_000;
 
 // ─── Selector catalogue ────────────────────────────────────────────────────
 
 const CHAT_CONTAINER_SELECTORS = [
+  '#story-viewport',
+  '.scroll-wrapper.custom-scrollbar',
+  // Upwork known selectors (Angular/React class patterns)
+  '[class*="chat-thread"]',
+  '[class*="ChatThread"]',
+  '[class*="message-thread"]',
+  '[class*="MessageThread"]',
+  '[class*="messages-list"]',
+  '[class*="MessagesList"]',
+  '[class*="conversation-body"]',
+  '[class*="ConversationBody"]',
   '.fe-chat-thread',
   '[data-qa="chat-thread"]',
   '.message-list',
   '.chat-thread',
   '[role="log"]',
+  // Fallback: find anything with many child elements inside main
   'main [class*="chat"]',
   'main [class*="message"]',
   'main',
 ] as const;
 
 const MESSAGE_ROW_SELECTORS = [
+  '#story-viewport > div',
+  '#story-viewport > [class*="story"]',
+  '.story-message',
+  '.story',
+  'div[id^="story-"]',
+  // Upwork-specific known patterns
+  '[class*="MessageBubble"]',
+  '[class*="message-bubble"]',
+  '[class*="MessageItem"]',
+  '[class*="message-item"]',
+  '[class*="MessageRow"]',
+  '[class*="message-row"]',
+  '[class*="chat-item"]',
+  '[class*="ChatItem"]',
+  '[class*="story-bubble"]',
+  '[class*="StoryBubble"]',
+  '[class*="RoomMessage"]',
+  '[class*="room-message"]',
+  // ARIA/data selectors
   '[data-qa="message"]',
   '[data-testid="message"]',
+  '[data-message-id]',
+  // Generic
   '.fe-message',
   '.message-row',
   '[role="listitem"]',
   '.message',
   'article',
-  '[class*="message-item"]',
-  '[class*="message-row"]',
 ] as const;
 
 const SENDER_SELECTORS = [
+  '[class*="sender-name"]',
+  '[class*="SenderName"]',
+  '[class*="user-name"]',
+  '[class*="UserName"]',
+  '[class*="username"]',
+  '[class*="author-name"]',
+  '[class*="AuthorName"]',
   '.sender-name',
   '[data-qa="sender-name"]',
   '[data-testid="sender-name"]',
@@ -68,29 +108,39 @@ const SENDER_SELECTORS = [
   'strong',
   'b',
   '[class*="sender"]',
-  '[class*="username"]',
   '[class*="author"]',
 ] as const;
 
 const TIMESTAMP_SELECTORS = [
   'time',
+  '[datetime]',
+  '[class*="timestamp"]',
+  '[class*="TimeStamp"]',
+  '[class*="message-time"]',
+  '[class*="MessageTime"]',
   '.time',
   '[data-qa="timestamp"]',
   '[data-testid="timestamp"]',
-  '.timestamp',
   '[class*="time"]',
   '[class*="date"]',
 ] as const;
 
 const MESSAGE_TEXT_SELECTORS = [
+  '[class*="message-text"]',
+  '[class*="MessageText"]',
+  '[class*="message-body"]',
+  '[class*="MessageBody"]',
+  '[class*="message-content"]',
+  '[class*="MessageContent"]',
+  '[class*="story-content"]',
+  '[class*="StoryContent"]',
+  '[class*="bubble-text"]',
+  '[class*="BubbleText"]',
   '.message-text',
   '.fe-message-text',
   '[data-qa="message-text"]',
   '[data-testid="message-text"]',
   '.story-bubble',
-  '[class*="message-body"]',
-  '[class*="message-content"]',
-  '[class*="text"]',
   'p',
   'span',
 ] as const;
@@ -271,6 +321,8 @@ class UpworkChatObserver {
   private observer: MutationObserver | null = null;
   private debounceTimer: ReturnType<typeof setTimeout> | null = null;
   private attachRetryTimer: ReturnType<typeof setTimeout> | null = null;
+  // Periodic interval scanner — catches mutations the Observer might miss
+  private intervalTimer: ReturnType<typeof setInterval> | null = null;
   private chatContainer: Element | null = null;
   private stopped = false;
   private isScanning = false;
@@ -292,7 +344,17 @@ class UpworkChatObserver {
     );
 
     this.attach();
+    // Initial scan — grab any messages already in the DOM
     await this.scanAll();
+
+    // Periodic re-scan every 8 s to catch mutations the Observer might miss
+    this.intervalTimer = setInterval(() => {
+      if (!this.stopped) {
+        void this.scanAll().catch((err) =>
+          console.error('[ShadowSense] Interval scan error:', err)
+        );
+      }
+    }, 8_000);
 
     if (existing.length > 0) {
       console.log(`[ShadowSense] Notifying background of ${existing.length} preloaded messages to refresh active trust score`);
@@ -341,6 +403,8 @@ class UpworkChatObserver {
     this.debounceTimer = null;
     if (this.attachRetryTimer !== null) clearTimeout(this.attachRetryTimer);
     this.attachRetryTimer = null;
+    if (this.intervalTimer !== null) clearInterval(this.intervalTimer);
+    this.intervalTimer = null;
   }
 
   private scheduleExtraction(): void {
@@ -362,19 +426,29 @@ class UpworkChatObserver {
 
     try {
       const root = this.chatContainer ?? document;
-      const rows = queryAll<Element>(root, MESSAGE_ROW_SELECTORS);
-
-      if (rows.length === 0) {
-        return;
-      }
-
+      let rows = queryAll<Element>(root, MESSAGE_ROW_SELECTORS);
       const conversationId = getConversationId();
       const newMessages: ChatMessage[] = [];
+
+      if (rows.length === 0) {
+        // ── Fallback: Upwork's DOM doesn't match any selector ────────────────
+        // Grab all visible text in the container and send it as one combined
+        // message for analysis. This handles obfuscated class names.
+        const fallbackMsg = this.extractFallbackMessage(root, conversationId);
+        if (!fallbackMsg || this.seen.has(fallbackMsg.id)) return;
+        this.seen.add(fallbackMsg.id);
+        console.log(
+          `[ShadowSense] Fallback extraction — sending full conversation text ` +
+          `(${fallbackMsg.text.length} chars) for analysis`
+        );
+        await saveMessages(conversationId, [fallbackMsg]);
+        this.notifyBackground([fallbackMsg]);
+        return;
+      }
 
       for (const row of rows) {
         const msg = this.extractMessage(row, conversationId);
         if (!msg) continue;
-
         if (this.seen.has(msg.id)) continue;
         this.seen.add(msg.id);
         newMessages.push(msg);
@@ -398,18 +472,95 @@ class UpworkChatObserver {
     }
   }
 
+  /**
+   * Last-resort extraction: scrape all paragraph / span text from the chat
+   * container and bundle it as a single message to send to the backend.
+   * Uses a fingerprint of the full text so it deduplicates across scans.
+   */
+  private extractFallbackMessage(
+    root: Element | Document,
+    conversationId: string
+  ): ChatMessage | null {
+    // Look for a meaningful text container — Upwork renders messages in
+    // a scrollable inner panel; try to grab just that region.
+    const textSelectors = [
+      '[class*="conversation"]',
+      '[class*="messages"]',
+      '[class*="chat"]',
+      '[class*="thread"]',
+      'main',
+    ];
+
+    let container: Element | null = null;
+    for (const sel of textSelectors) {
+      try {
+        const el = (root instanceof Document ? root : root.ownerDocument ?? document)
+          .querySelector(sel);
+        if (el && el.textContent && el.textContent.trim().length > 50) {
+          container = el;
+          break;
+        }
+      } catch { /* ignore */ }
+    }
+
+    // Collect all <p> and meaningful text-only spans
+    const textParts: string[] = [];
+    const targetEl = container ?? (root instanceof Document ? root.body : root);
+
+    // Use TreeWalker to grab visible text nodes longer than 10 chars
+    const walker = document.createTreeWalker(
+      targetEl,
+      NodeFilter.SHOW_TEXT,
+      {
+        acceptNode(node) {
+          const text = node.textContent?.trim() ?? '';
+          if (text.length < 10) return NodeFilter.FILTER_REJECT;
+          // Skip script/style nodes
+          const parent = node.parentElement;
+          if (!parent) return NodeFilter.FILTER_REJECT;
+          const tag = parent.tagName.toLowerCase();
+          if (tag === 'script' || tag === 'style' || tag === 'noscript') {
+            return NodeFilter.FILTER_REJECT;
+          }
+          return NodeFilter.FILTER_ACCEPT;
+        }
+      }
+    );
+
+    let node: Text | null;
+    const seen = new Set<string>();
+    while ((node = walker.nextNode() as Text | null)) {
+      const t = node.textContent?.trim() ?? '';
+      if (!seen.has(t)) {
+        seen.add(t);
+        textParts.push(t);
+      }
+      if (textParts.length >= 50) break; // cap at 50 segments
+    }
+
+    const fullText = textParts.join(' ').slice(0, 4000);
+    if (fullText.length < 20) return null;
+
+    const id = fingerprint('fallback', fullText, conversationId);
+
+    return {
+      id,
+      conversationId,
+      sender: 'Unknown (fallback)',
+      senderRole: 'other',
+      text: fullText,
+      timestamp: new Date().toISOString(),
+      capturedAt: Date.now(),
+      pageUrl: window.location.href,
+    };
+  }
+
   private extractMessage(
     row: Element,
     conversationId: string
   ): ChatMessage | null {
-    const textEl = queryFirst(row, MESSAGE_TEXT_SELECTORS);
-    const text = (textEl ?? row).textContent?.trim() ?? "";
-
-    if (text.length === 0) return null;
-    if (text.length > 10_000) return null;
-
+    // 1. Extract sender name
     let sender = "Unknown";
-
     const dataUser =
       row.getAttribute("data-username") ||
       row.getAttribute("data-sender") ||
@@ -427,6 +578,7 @@ class UpworkChatObserver {
       }
     }
 
+    // 2. Extract timestamp
     const timeEl = queryFirst(row, TIMESTAMP_SELECTORS);
     const timestamp = extractTimestamp(row);
     const timestampKey =
@@ -435,6 +587,40 @@ class UpworkChatObserver {
       timeEl?.getAttribute("aria-label") ||
       timeEl?.textContent?.trim() ||
       "";
+
+    // 3. Extract message text (exclude sender and timestamp to avoid false short text matches)
+    const textSelectorsWithoutGeneric = MESSAGE_TEXT_SELECTORS.filter(s => s !== "span" && s !== "p");
+    const textEl = queryFirst(row, textSelectorsWithoutGeneric);
+    let text = "";
+    
+    if (textEl) {
+      text = textEl.textContent?.trim() ?? "";
+    } else {
+      // Look for any p or span, checking that its content doesn't exactly match the sender name or timestamp
+      const allTextNodes = Array.from(row.querySelectorAll("p, span, div, text"));
+      for (const el of allTextNodes) {
+        const elText = el.textContent?.trim() ?? "";
+        if (
+          elText.length > 0 && 
+          elText !== sender && 
+          elText !== timestamp && 
+          !elText.includes(timestamp) && 
+          !elText.includes(sender)
+        ) {
+          if (elText.length > text.length && elText.length < 10000) {
+            text = elText;
+          }
+        }
+      }
+    }
+
+    // Ultimate fallback: if text is still empty, grab the full row text content
+    if (!text) {
+      text = row.textContent?.trim() ?? "";
+    }
+
+    if (text.length === 0) return null;
+    if (text.length > 10_000) return null;
 
     const senderRole = detectSenderRole(row);
 
@@ -1134,6 +1320,15 @@ window.addEventListener("popstate", () => {
     console.error("[ShadowSense] Popstate navigation error:", err)
   );
 });
+
+// ─── Polling-based URL monitor (fallback for Upwork's internal Angular router)
+// Upwork may use Zone.js or a custom router that patches history differently.
+// Poll every 1 s so navigation is always detected regardless of router impl.
+setInterval(() => {
+  void handleNavigation().catch((err) =>
+    console.error("[ShadowSense] URL-poll navigation error:", err)
+  );
+}, 1_000);
 
 // ─── Entry point ─────────────────────────────────────────────────────────────
 
