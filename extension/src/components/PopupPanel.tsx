@@ -25,6 +25,10 @@ interface PopupPanelProps {
   noScanYet?: boolean;
   /** True when the /health ping to the backend failed. */
   backendOffline?: boolean;
+  /** True while a manual re-analysis is in flight. */
+  isReanalyzing?: boolean;
+  /** Callback to trigger a manual re-analysis. */
+  onReanalyze?: () => void;
 }
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -114,8 +118,10 @@ export const PopupPanel: React.FC<PopupPanelProps> = ({
   state,
   messageId = 'fiverr-msg-001',
   platform  = 'fiverr',
-  noScanYet     = false,
+  noScanYet      = false,
   backendOffline = false,
+  isReanalyzing  = false,
+  onReanalyze,
 }) => {
   const { score, level, agents, reasons, suggestedResponse, isStreaming } = state;
 
@@ -278,6 +284,47 @@ export const PopupPanel: React.FC<PopupPanelProps> = ({
             messageId={messageId}
             onOverride={handleDismiss}
           />
+
+          {/* ─── Re-analyze Now button ── */}
+          {onReanalyze && (
+            <button
+              id="ss-reanalyze-btn"
+              onClick={onReanalyze}
+              disabled={isReanalyzing || backendOffline}
+              aria-label="Re-analyze the current conversation"
+              style={{
+                display:        'flex',
+                alignItems:     'center',
+                justifyContent: 'center',
+                gap:            '6px',
+                width:          '100%',
+                marginTop:      '8px',
+                padding:        '8px 12px',
+                background:     isReanalyzing ? '#1e1b4b' : 'linear-gradient(135deg,#4f46e5,#7c3aed)',
+                color:          '#fff',
+                border:         'none',
+                borderRadius:   '8px',
+                fontSize:       '12px',
+                fontWeight:     600,
+                cursor:         isReanalyzing || backendOffline ? 'not-allowed' : 'pointer',
+                opacity:        isReanalyzing || backendOffline ? 0.65 : 1,
+                transition:     'opacity 0.2s, background 0.2s',
+                fontFamily:     'system-ui, sans-serif',
+              }}
+            >
+              {isReanalyzing ? (
+                <>
+                  <span style={{ fontSize: '14px', animation: 'aoSpin 0.8s linear infinite', display: 'inline-block' }}>⟳</span>
+                  Analyzing…
+                </>
+              ) : (
+                <>
+                  <span>🛡</span>
+                  Re-analyze Now
+                </>
+              )}
+            </button>
+          )}
         </>
       )}
     </div>

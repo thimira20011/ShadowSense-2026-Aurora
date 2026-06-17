@@ -328,6 +328,8 @@ class FiverrChatObserver {
   private observer: MutationObserver | null = null;
   private debounceTimer: ReturnType<typeof setTimeout> | null = null;
   private attachRetryTimer: ReturnType<typeof setTimeout> | null = null;
+  /** Periodic fallback scanner — catches mutations the Observer might miss */
+  private intervalTimer: ReturnType<typeof setInterval> | null = null;
   private chatContainer: Element | null = null;
   private stopped = false;
   private isScanning = false;
@@ -337,13 +339,24 @@ class FiverrChatObserver {
 
   async init(): Promise<void> {
     this.stopped = false;
+
+    // Fix A: Always disconnect the stale observer before re-attaching.
+    // Fiverr replaces the chat container element on SPA thread switches.
+    // Without this, the old observer keeps watching a detached node.
+    this.observer?.disconnect();
+    this.observer = null;
+    this.chatContainer = null;
+    this.preloadedIds.clear();
+    this.seen.clear();
+
     const conversationId = getConversationId();
 
-    // Pre-load fingerprints of already-stored messages for this conversation
+    // Fix B: Only populate preloadedIds (for storage dedup), NOT this.seen.
+    // this.seen starts empty so scanAll() will re-capture all visible messages
+    // and send them as a fresh context window for analysis.
     const existing = await loadStoredMessages(conversationId);
     for (const msg of existing) {
       this.preloadedIds.add(msg.id);
-      this.seen.add(msg.id);
     }
 
     console.log(
@@ -355,10 +368,16 @@ class FiverrChatObserver {
     // Do an initial scan for messages already present in the DOM
     await this.scanAll();
 
-    if (existing.length > 0) {
-      console.log(`[ShadowSense] Notifying background of ${existing.length} preloaded messages to refresh active trust score`);
-      this.notifyBackground(existing);
-    }
+    // Fix E: Periodic fallback scanner (10 s) in case MutationObserver misses
+    // messages (e.g. virtual-scroll, lazy-loaded bubbles).
+    if (this.intervalTimer !== null) clearInterval(this.intervalTimer);
+    this.intervalTimer = setInterval(() => {
+      if (!this.stopped) {
+        void this.scanAll().catch((err) =>
+          console.error('[ShadowSense] Interval scan error:', err)
+        );
+      }
+    }, 10_000);
   }
 
   /**
@@ -408,6 +427,8 @@ class FiverrChatObserver {
     this.debounceTimer = null;
     if (this.attachRetryTimer !== null) clearTimeout(this.attachRetryTimer);
     this.attachRetryTimer = null;
+    if (this.intervalTimer !== null) clearInterval(this.intervalTimer);
+    this.intervalTimer = null;
   }
 
   // ── Extraction ───────────────────────────────────────────────────────────
@@ -445,7 +466,8 @@ class FiverrChatObserver {
         const msg = this.extractMessage(row, conversationId);
         if (!msg) continue;
 
-        if (this.seen.has(msg.id)) continue; // already captured
+        // Fix B: skip if in seen (this session) OR preloadedIds (prior storage)
+        if (this.seen.has(msg.id) || this.preloadedIds.has(msg.id)) continue;
         this.seen.add(msg.id);
         newMessages.push(msg);
       }
@@ -458,7 +480,10 @@ class FiverrChatObserver {
       );
 
       await saveMessages(conversationId, newMessages);
-      this.notifyBackground(newMessages);
+      // Fix C: send the last 10 stored messages as context (not just the new ones)
+      const allStored = await loadStoredMessages(conversationId);
+      const contextWindow = allStored.slice(-10);
+      this.notifyBackground(contextWindow);
     } finally {
       this.isScanning = false;
       if (this.scanQueued) {
@@ -547,12 +572,46 @@ class FiverrChatObserver {
 
   // ── Messaging ────────────────────────────────────────────────────────────
 
+  // ── Fix D: Analyzing spinner badge ──────────────────────────────────────
+
+  private showAnalyzingBadge(): void {
+    const BADGE_ID = 'ss-analyzing-badge';
+    if (document.getElementById(BADGE_ID)) return;
+    const badge = document.createElement('div');
+    badge.id = BADGE_ID;
+    badge.setAttribute('role', 'status');
+    badge.setAttribute('aria-live', 'polite');
+    badge.style.cssText = [
+      'position:fixed', 'bottom:80px', 'right:16px', 'z-index:2147483647',
+      'background:#312e81', 'color:#fff', 'font-size:11px',
+      'font-family:system-ui,sans-serif', 'font-weight:500',
+      'padding:7px 14px', 'border-radius:8px',
+      'box-shadow:0 4px 16px rgba(0,0,0,0.3)',
+      'display:flex', 'align-items:center', 'gap:8px',
+      'opacity:0', 'transition:opacity 0.2s ease',
+    ].join(';');
+    badge.innerHTML = `<span>🛡</span><span>ShadowSense — Analyzing…</span>`;
+    document.body.appendChild(badge);
+    requestAnimationFrame(() => { badge.style.opacity = '1'; });
+  }
+
+  private hideAnalyzingBadge(): void {
+    const badge = document.getElementById('ss-analyzing-badge');
+    if (!badge) return;
+    badge.style.opacity = '0';
+    setTimeout(() => badge.remove(), 200);
+  }
+
   private notifyBackground(messages: ChatMessage[]): void {
     // Save a cached score so we can show it offline
     this.saveLastKnownScore();
 
+    // Fix D: show spinner while waiting for 20-90s backend response
+    this.showAnalyzingBadge();
+
     const timeoutId = setTimeout(() => {
       // Background didn't respond in time — show offline badge
+      this.hideAnalyzingBadge();
       this.showOfflineBadge();
     }, NOTIFY_TIMEOUT_MS);
 
@@ -565,28 +624,38 @@ class FiverrChatObserver {
         { type: "FIVERR_MESSAGES_CAPTURED", payload: messages },
         (response) => {
           clearTimeout(timeoutId);
+          this.hideAnalyzingBadge(); // Fix D: hide spinner on any response
           if (chrome.runtime.lastError) {
             console.debug("[ShadowSense] Background response error:", chrome.runtime.lastError);
             this.showOfflineBadge();
             return;
           }
           if (response && response.success) {
-            // If response indicates high-risk, inject response templates
-            if (response.level === 'high-risk') {
-              this.injectResponseTemplates([
+            const level         = response.level ?? 'clear';
+            const score         = response.trust_score ?? 100;
+            const reasons       = response.reasons ?? [];
+            const analysisId    = response.analysis_id ?? '';
+            const aiTemplates   = (response.suggested_responses ?? []) as string[];
+
+            // Inject response chips for high-risk AND advisory
+            if (level === 'high-risk' || level === 'advisory') {
+              const highRiskFallback = [
                 "Thanks, but I need to verify this request with Fiverr support first.",
                 "I'm only able to accept files through the official Fiverr platform. Please use the attachment feature here.",
                 "I prefer to keep all communication within Fiverr to protect both of us. Let's continue here.",
-              ]);
+              ];
+              const advisoryFallback = [
+                "Thank you for your message. Please share all project details directly on the platform.",
+                "I'd love to help — could we keep all communication and files within the platform?",
+                "Let's discuss the full scope of work here before I commit to anything.",
+              ];
+              const fallback = level === 'high-risk' ? highRiskFallback : advisoryFallback;
+              // AI-generated templates take priority; fall back to static if backend returned none
+              this.injectResponseTemplates(aiTemplates.length > 0 ? aiTemplates : fallback);
             }
+
             // Inject in-chat intervention overlay
-            this.injectInterventionOverlay(
-              response.trust_score,
-              response.level,
-              response.reasons,
-              response.analysis_id,
-              latestText
-            );
+            this.injectInterventionOverlay(score, level, reasons, analysisId, latestText);
           } else if (response && !response.success) {
             this.showOfflineBadge();
           }
@@ -1031,8 +1100,12 @@ class FiverrChatObserver {
     if (!targetRow || !targetRow.parentElement) return;
 
     const reasonsText = reasons && reasons.length > 0
-      ? reasons.map(r => `• ${r}`).join('<br>')
-      : "Suspicious metadata or behavioral characteristics detected.";
+      ? `<ul style="margin:4px 0 0 0;padding-left:18px;">` +
+          reasons.slice(0, 5).map(r =>
+            `<li style="font-size:11px;line-height:1.55;margin-bottom:3px;">${r}</li>`
+          ).join('') +
+        `</ul>`
+      : `<p style="font-size:11px;margin:0;">Suspicious metadata or behavioral characteristics detected.</p>`;
 
     if (level === 'high-risk') {
       // Create High-Risk Card
