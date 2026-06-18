@@ -218,11 +218,19 @@ class ShieldAgent:
 
         score = max(0, min(100, raw_score + benign_boost))
 
+        linguistic_tier = linguistic_res.get("tier_used", "unknown")
+        identity_tier   = identity_res.get("tier_used", "unknown")
+        payload_tier    = payload_res.get("tier_used", "unknown")
+
         logger.info(
-            "Shield Trust Score: %d  (raw=%d, benign_boost=%d, linguistic=%.1f, "
-            "identity=%.1f, payload=%.1f, chromadb_penalty=%.1f, weighted_risk=%.2f, chromadb_patterns=%d)",
+            "Shield Trust Score: %d  (raw=%d, benign_boost=%d, linguistic=%.1f[%s], "
+            "identity=%.1f[%s], payload=%.1f[%s], chromadb_penalty=%.1f, "
+            "weighted_risk=%.2f, chromadb_patterns=%d)",
             score, raw_score, benign_boost,
-            linguistic_urgency, identity_risk, payload_risk, chromadb_penalty, weighted_risk,
+            linguistic_urgency, linguistic_tier,
+            identity_risk, identity_tier,
+            payload_risk, payload_tier,
+            chromadb_penalty, weighted_risk,
             len(similar_patterns),
         )
 
@@ -251,6 +259,12 @@ class ShieldAgent:
                 "identity":          identity_res,
                 "payload":           payload_res,
                 "similar_patterns":  similar_patterns,  # ChromaDB top-k
+                # Tier provenance -- which model actually produced each sub-score
+                "tiers_used": {
+                    "linguistic": linguistic_tier,
+                    "identity":   identity_tier,
+                    "payload":    payload_tier,
+                },
             },
         }
 

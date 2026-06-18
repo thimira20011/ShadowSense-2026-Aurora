@@ -101,6 +101,7 @@ class LinguisticAgent:
         if self.is_mock:
             # Fallback mock logic for testing/development when API key is missing
             result = self._mock_analyze(text)
+            result["tier_used"] = "mock"
             if truncated:
                 result["red_flags"].insert(0, "Message truncated — original exceeds 4,000 characters")
                 result["patterns"] = result["red_flags"]
@@ -157,6 +158,7 @@ class LinguisticAgent:
                     "urgency_score": float(parsed.get("urgency_score", 0.0)),
                     "red_flags":     flags,
                     "confidence":    float(parsed.get("confidence", 1.0)),
+                    "tier_used":     "groq",
                 }
 
             except Exception as exc:
@@ -216,16 +218,18 @@ class LinguisticAgent:
             if truncated:
                 flags.insert(0, "Message truncated — original exceeds 4,000 characters")
             return {
-                "patterns": flags,
+                "patterns":      flags,
                 "urgency_score": float(parsed.get("urgency_score", 0.0)),
-                "red_flags": flags,
-                "confidence": float(parsed.get("confidence", 1.0))
+                "red_flags":     flags,
+                "confidence":    float(parsed.get("confidence", 1.0)),
+                "tier_used":     "gemini",
             }
 
         except Exception as e:
             latency = time.perf_counter() - start_time
             logger.error(f"Gemini API fallback error: {e}. Falling back to rule-based mock analysis. Total latency: {latency:.4f}s")
             result = self._mock_analyze(text)
+            result["tier_used"] = "mock"
             if truncated:
                 result["red_flags"].insert(0, "Message truncated — original exceeds 4,000 characters")
                 result["patterns"] = result["red_flags"]
@@ -313,8 +317,9 @@ class LinguisticAgent:
             confidence = 1.0
 
         return {
-            "patterns": red_flags,
+            "patterns":      red_flags,
             "urgency_score": float(urgency_score),
-            "red_flags": red_flags,
-            "confidence": confidence
+            "red_flags":     red_flags,
+            "confidence":    confidence,
+            "tier_used":     "mock",
         }

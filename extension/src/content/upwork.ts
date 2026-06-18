@@ -327,6 +327,12 @@ class UpworkChatObserver {
   private stopped = false;
   private isScanning = false;
   private scanQueued = false;
+  /**
+   * Hash of the last transcript sent to the backend.
+   * Used to skip re-analysis when the conversation content hasn't changed.
+   * Cleared on SPA navigation (init) so the first analysis always runs.
+   */
+  private lastSentTranscriptHash: string | null = null;
 
   async init(): Promise<void> {
     this.stopped = false;
@@ -337,6 +343,8 @@ class UpworkChatObserver {
     this.chatContainer = null;
     this.preloadedIds.clear();
     this.seen.clear();
+    // Clear the transcript hash so the first analysis on a new conversation always runs
+    this.lastSentTranscriptHash = null;
 
     const conversationId = getConversationId();
 
@@ -472,6 +480,26 @@ class UpworkChatObserver {
       // Fix C: send the last 10 stored messages as context (not just new ones)
       const allStored = await loadStoredMessages(conversationId);
       const contextWindow = allStored.slice(-10);
+
+      // Compute a fingerprint of the incoming (client-only) transcript.
+      // Skip analysis if the transcript is identical to the last one sent —
+      // this prevents periodic re-scans from hitting different API tiers for
+      // the same conversation content and producing different scores.
+      const incomingOnly = contextWindow.filter((m) => m.senderRole === "other");
+      const transcriptHash = fingerprint(
+        "transcript",
+        incomingOnly.map((m) => m.text).join("|"),
+        conversationId,
+      );
+
+      if (transcriptHash === this.lastSentTranscriptHash) {
+        console.debug(
+          "[ShadowSense] Transcript unchanged — skipping redundant re-analysis."
+        );
+        return;
+      }
+      this.lastSentTranscriptHash = transcriptHash;
+
       this.notifyBackground(contextWindow);
     } finally {
       this.isScanning = false;

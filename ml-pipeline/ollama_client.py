@@ -63,11 +63,18 @@ class OllamaClient:
         self,
         prompt: str,
         system_prompt: Optional[str] = None,
-        temperature: float = 0.7,
+        temperature: float = 0.0,
         max_tokens: int = 1000,
         timeout: int = 60,
+        seed: int = 42,
     ) -> str:
-        """Generate a response from the configured Ollama model."""
+        """Generate a response from the configured Ollama model.
+
+        Defaults:
+            temperature=0.0  — deterministic output for security analysis.
+            seed=42          — fixed seed so Ollama reproduces the same result
+                               when called with identical inputs.
+        """
         payload = {
             "model": self.model,
             "prompt": prompt,
@@ -75,16 +82,17 @@ class OllamaClient:
             "options": {
                 "temperature": temperature,
                 "num_predict": max_tokens,
-            }
+                "seed": seed,
+            },
         }
-        
+
         if system_prompt:
             payload["system"] = system_prompt
-        
+
         response = requests.post(
             f"{self.host}/api/generate",
             json=payload,
-            timeout=timeout
+            timeout=timeout,
         )
         response.raise_for_status()
         return response.json()["response"]

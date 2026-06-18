@@ -55,6 +55,16 @@ GEMINI_MODEL  = "models/gemini-2.0-flash"
 _ollama_executor = ThreadPoolExecutor(max_workers=1, thread_name_prefix="identity-ollama")
 
 
+def _clamp_score(identity_risk: float, confidence: float) -> tuple[float, float]:
+    """Clamp identity_risk to [0, 100] and confidence to [0.0, 1.0].
+
+    LLMs occasionally return out-of-range values (e.g. 110 or -5 for risk,
+    1.2 for confidence). Clamping prevents those values from propagating into
+    the weighted Trust Score calculation and inflating/deflating the result.
+    """
+    return max(0.0, min(100.0, float(identity_risk))), max(0.0, min(1.0, float(confidence)))
+
+
 class IdentityAgent:
     """Analyses account profile metadata for identity anomalies and fraud signals.
 
@@ -398,6 +408,8 @@ class IdentityAgent:
         if not anomalies:
             confidence = 1.0
 
+        identity_risk, confidence = _clamp_score(identity_risk, confidence)
+
         latency = time.perf_counter() - start
         logger.info(
             "IdentityAgent[Rules]: identity_risk=%.1f, anomalies=%d, latency=%.4fs",
@@ -465,6 +477,9 @@ class IdentityAgent:
         identity_risk = float(parsed.get("identity_risk", 0.0))
         anomalies     = parsed.get("anomalies", [])
         confidence    = float(parsed.get("confidence", 1.0))
+
+        # Clamp to valid ranges — LLMs occasionally return out-of-range values
+        identity_risk, confidence = _clamp_score(identity_risk, confidence)
 
         return {
             "verified":      identity_risk < 40,

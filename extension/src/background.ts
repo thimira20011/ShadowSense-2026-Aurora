@@ -218,13 +218,13 @@ chrome.runtime.onMessage.addListener(
 
       const latest = incomingMessages[incomingMessages.length - 1];
 
-      // Concatenate up to 15 most recent messages as a conversation transcript
-      const transcript = messages
+      // Build the transcript from the last 10 INCOMING (client) messages only.
+      // Including your own replies dilutes the scam signal because your professional
+      // language lowers the LLM's urgency_score — causing the same conversation to
+      // score differently depending on how many of your replies are in the window.
+      const transcript = incomingMessages
         .slice(-10)
-        .map((m) => {
-          const role = m.senderRole === "other" ? `Client (${m.sender})` : `Freelancer (${m.sender})`;
-          return `${role}: ${m.text}`;
-        })
+        .map((m) => `Client (${m.sender}): ${m.text}`)
         .join("\n---\n");
 
       // Build the request message — use the full transcript as the text
