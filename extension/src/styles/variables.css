@@ -43,6 +43,23 @@
   /* Fiverr Green */
   --color-fiverr: #1dbf73;
 
+  /* Rich Gradients (Light) */
+  --grad-risk: linear-gradient(135deg, #fff5f5 0%, #fee2e2 100%);
+  --grad-warn: linear-gradient(135deg, #fffbeb 0%, #fef3c7 100%);
+  --grad-clear: linear-gradient(135deg, #ecfdf5 0%, #d1fae5 100%);
+  --grad-accent: linear-gradient(135deg, #eeedfe 0%, #e0e0ff 100%);
+
+  /* Glowing shadows */
+  --glow-risk: 0 8px 32px rgba(226, 75, 74, 0.15), 0 2px 8px rgba(226, 75, 74, 0.08);
+  --glow-warn: 0 8px 32px rgba(239, 159, 39, 0.15), 0 2px 8px rgba(239, 159, 39, 0.08);
+  --glow-clear: 0 8px 32px rgba(29, 158, 117, 0.15), 0 2px 8px rgba(29, 158, 117, 0.08);
+  --glow-accent: 0 8px 32px rgba(123, 97, 255, 0.15), 0 2px 8px rgba(123, 97, 255, 0.08);
+
+  /* Glassmorphism */
+  --glass-bg: rgba(255, 255, 255, 0.7);
+  --glass-border: rgba(228, 228, 231, 0.6);
+  --glass-blur: blur(12px);
+
   /* Gauge */
   --gauge-track-color: #e4e4e7;
   --gauge-shadow-risk: rgba(226, 75, 74, 0.35);
@@ -66,9 +83,6 @@
 }
 
 /* ─── Dark Mode ──────────────────────────────────────────────────────────── */
-/* Follows OS preference. Also activated by Fiverr's dark theme detection    */
-/* via `html[data-theme="dark"]` or `body.dark-mode` as a secondary signal.  */
-
 @media (prefers-color-scheme: dark) {
   :root {
     --color-bg-base: #18181b;
@@ -79,7 +93,7 @@
     --color-text-secondary: #a1a1aa;
     --color-text-tertiary: #71717a;
 
-    /* Risk State — desaturated for dark, not inverted */
+    /* Risk State */
     --color-risk-bg: #2d1515;
     --color-risk-border: #e24b4a40;
     --color-risk-text: #fca5a5;
@@ -105,6 +119,16 @@
 
     /* Fiverr Green adjusted */
     --color-fiverr: #22c55e;
+
+    /* Rich Gradients (Dark) */
+    --grad-risk: linear-gradient(135deg, #2d1515 0%, #1c0b0b 100%);
+    --grad-warn: linear-gradient(135deg, #2d1f08 0%, #1e1302 100%);
+    --grad-clear: linear-gradient(135deg, #0d2e22 0%, #081e16 100%);
+    --grad-accent: linear-gradient(135deg, #1e1a3a 0%, #121024 100%);
+
+    /* Glassmorphism (Dark) */
+    --glass-bg: rgba(39, 39, 42, 0.75);
+    --glass-border: rgba(63, 63, 70, 0.55);
 
     /* Gauge track */
     --gauge-track-color: #3f3f46;
@@ -139,6 +163,12 @@ body[class*="dark"] {
   --color-accent-bg: #1e1a3a;
   --color-accent-text: #c4b5fd;
   --color-fiverr: #22c55e;
+  --grad-risk: linear-gradient(135deg, #2d1515 0%, #1c0b0b 100%);
+  --grad-warn: linear-gradient(135deg, #2d1f08 0%, #1e1302 100%);
+  --grad-clear: linear-gradient(135deg, #0d2e22 0%, #081e16 100%);
+  --grad-accent: linear-gradient(135deg, #1e1a3a 0%, #121024 100%);
+  --glass-bg: rgba(39, 39, 42, 0.75);
+  --glass-border: rgba(63, 63, 70, 0.55);
   --gauge-track-color: #3f3f46;
 }
 

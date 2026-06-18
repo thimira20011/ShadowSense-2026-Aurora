@@ -1,75 +1,91 @@
 {
   "meta": {
-    "generated_at": "2026-06-04T20:50:34.531863+00:00",
+    "generated_at": "2026-06-17T15:03:28.976473+00:00",
     "version": "week3-checkpoint",
     "project": "ShadowSense 2026 Aurora"
   },
   "scam_patterns": {
-    "total_stored": 20,
+    "total_stored": 40,
     "total_override_reports": 11,
     "total_benign_promoted": 2
   },
   "detection_activity": {
-    "total_queries": 27,
-    "avg_top_similarity": 0.5558,
+    "total_queries": 85,
+    "avg_top_similarity": 0.6198,
     "top_detected_patterns": [
       {
-        "pattern_id": "scam_020",
-        "detection_count": 16
+        "pattern_id": "scam_004",
+        "detection_count": 10
       },
       {
-        "pattern_id": "scam_014",
-        "detection_count": 3
-      },
-      {
-        "pattern_id": "scam_002",
-        "detection_count": 2
+        "pattern_id": "scam_013",
+        "detection_count": 8
       },
       {
         "pattern_id": "scam_006",
-        "detection_count": 2
+        "detection_count": 8
       },
       {
-        "pattern_id": "scam_003",
-        "detection_count": 2
+        "pattern_id": "scam_026",
+        "detection_count": 6
+      },
+      {
+        "pattern_id": "scam_032",
+        "detection_count": 4
+      },
+      {
+        "pattern_id": "scam_036",
+        "detection_count": 4
       },
       {
         "pattern_id": "scam_001",
+        "detection_count": 3
+      },
+      {
+        "pattern_id": "scam_007",
+        "detection_count": 2
+      },
+      {
+        "pattern_id": "scam_021",
+        "detection_count": 2
+      },
+      {
+        "pattern_id": "scam_022",
         "detection_count": 2
       }
     ],
     "top_scam_types": [
       {
-        "type": "money_mule",
-        "detection_count": 16
-      },
-      {
-        "type": "low_ball_bait",
-        "detection_count": 3
-      },
-      {
         "type": "phishing",
-        "detection_count": 2
-      },
-      {
-        "type": "malware",
-        "detection_count": 2
+        "detection_count": 58
       },
       {
         "type": "impersonation",
-        "detection_count": 2
+        "detection_count": 16
       },
       {
-        "type": "payment_scam",
-        "detection_count": 2
+        "type": "malware",
+        "detection_count": 8
+      },
+      {
+        "type": "unpaid_trial",
+        "detection_count": 1
+      },
+      {
+        "type": "off_platform",
+        "detection_count": 1
+      },
+      {
+        "type": "advance_fee",
+        "detection_count": 1
       }
     ]
   },
   "false_positive_analysis": {
-    "total_override_events": 10,
-    "total_detections": 27,
-    "false_positive_rate": 0.3704,
-    "false_positive_pct": 37.04,
+    "total_override_events": 11,
+    "total_detections": 85,
+    "false_positive_rate": 0.1294,
+    "false_positive_pct": 12.94,
     "top_overridden_patterns": [
       {
         "pattern_key": "a73400e338b3509c",
@@ -85,6 +101,11 @@
         "pattern_key": "ff8511a78f88bfb9",
         "pattern_text": "Run setup.exe to preview the deliverable demo files we've sent you.",
         "override_count": 2
+      },
+      {
+        "pattern_key": "41d445bf1949ff07",
+        "pattern_text": "override:no-scan-yet",
+        "override_count": 1
       }
     ]
   },
@@ -97,14 +118,14 @@
         "pattern_key": "a73400e338b3509c",
         "pattern_text": "Please send payment via gift card or PayPal Friends and Family outside the platform.",
         "override_count": 5,
-        "promoted_at": "2026-06-04T20:49:49.446646+00:00",
+        "promoted_at": "2026-06-17T15:03:28.301151+00:00",
         "trust_boost": 20
       },
       {
         "pattern_key": "15abd2105975e80a",
         "pattern_text": "Your Fiverr account will be suspended. Verify by clicking this link immediately.",
         "override_count": 3,
-        "promoted_at": "2026-06-04T20:49:49.682584+00:00",
+        "promoted_at": "2026-06-17T15:03:28.520543+00:00",
         "trust_boost": 20
       }
     ]

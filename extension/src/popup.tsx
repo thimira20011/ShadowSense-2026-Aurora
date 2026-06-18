@@ -30,7 +30,23 @@ export const Popup: React.FC = () => {
   // backendOffline: null = unknown, true = offline, false = online
   const [backendOffline, setBackendOffline] = useState<boolean>(false);
 
+  const [reanalyzing, setReanalyzing] = useState<boolean>(false);
+
   const { state, updateScore } = useSimulation(55, platform);
+
+  // ── Re-analyze Now (manual popup button) ──────────────────────────────────
+  const handleReanalyze = useCallback(() => {
+    if (reanalyzing) return;
+    setReanalyzing(true);
+    chrome.runtime.sendMessage({ type: "REANALYZE_NOW" }, (response) => {
+      setReanalyzing(false);
+      if (chrome.runtime.lastError || !response?.success) {
+        console.warn('[ShadowSense] Re-analysis failed:', chrome.runtime.lastError?.message ?? response?.error);
+        return;
+      }
+      // Score updates automatically via the chrome.storage.onChanged listener
+    });
+  }, [reanalyzing]);
 
   // ── 1. Detect active-tab platform ──────────────────────────────────────────
   useEffect(() => {
@@ -125,6 +141,8 @@ export const Popup: React.FC = () => {
         platform={platform}
         noScanYet={noScanYet}
         backendOffline={backendOffline}
+        isReanalyzing={reanalyzing}
+        onReanalyze={handleReanalyze}
       />
     </div>
   );

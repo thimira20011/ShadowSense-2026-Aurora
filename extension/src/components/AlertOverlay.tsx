@@ -143,7 +143,31 @@ const AdvisoryBanner: React.FC<{
     }
   }, [score, messageId, onDismiss, onFeedbackSent]);
 
-  if (done) return null;
+  if (done) {
+    return (
+      <div
+        className="alert-overlay-advisory ss-success-banner"
+        style={{
+          borderTopColor: 'var(--color-clear-primary)',
+          background: 'var(--grad-clear)',
+          boxShadow: 'var(--glow-clear)'
+        }}
+        role="status"
+        aria-live="polite"
+      >
+        <div className="advisory-accent-bar" style={{ background: 'var(--color-clear-primary)' }} />
+        <div className="advisory-icon-wrap" style={{ background: 'var(--color-clear-bg)', borderColor: 'var(--color-clear-border)' }}>
+          <span style={{ color: 'var(--color-clear-primary)', fontSize: 13, fontWeight: 'bold' }}>✓</span>
+        </div>
+        <div className="advisory-text">
+          <span className="advisory-eyebrow" style={{ color: 'var(--color-clear-text)' }}>Feedback Logged</span>
+          <p className="advisory-message" style={{ color: 'var(--color-clear-text)', fontSize: '11.5px' }}>
+            Thank you! This pattern has been reported.
+          </p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div
@@ -260,7 +284,26 @@ const HighRiskModal: React.FC<{
     }
   }, [score, messageId, onDismiss, onFeedbackSent]);
 
-  if (overridden) return null;
+  if (overridden) {
+    return (
+      <>
+        <div className="ao-backdrop" />
+        <div className="ao-modal ss-success-modal" style={{ borderTopColor: 'var(--color-clear-primary)', boxShadow: 'var(--glow-clear)' }} role="status">
+          <div className="ao-modal-icon-ring">
+            <div className="ao-modal-icon-inner" style={{ background: 'var(--color-clear-bg)', borderColor: 'var(--color-clear-border)' }}>
+              <span style={{ color: 'var(--color-clear-primary)', fontSize: 22, fontWeight: 'bold' }}>✓</span>
+            </div>
+          </div>
+          <h2 className="ao-modal-title" style={{ color: 'var(--color-clear-text)' }}>
+            Warning Overridden
+          </h2>
+          <p className="ao-modal-body" style={{ color: 'var(--color-text-secondary)', marginBottom: '14px' }}>
+            Your override feedback has been processed. The safety shield is now bypassed.
+          </p>
+        </div>
+      </>
+    );
+  }
 
   return (
     <>

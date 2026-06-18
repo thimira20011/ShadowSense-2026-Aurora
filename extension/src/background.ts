@@ -220,7 +220,7 @@ chrome.runtime.onMessage.addListener(
 
       // Concatenate up to 15 most recent messages as a conversation transcript
       const transcript = messages
-        .slice(-15)
+        .slice(-10)
         .map((m) => {
           const role = m.senderRole === "other" ? `Client (${m.sender})` : `Freelancer (${m.sender})`;
           return `${role}: ${m.text}`;
@@ -248,6 +248,7 @@ chrome.runtime.onMessage.addListener(
             level,
             analysis_id: result.analysis_id,
             reasons: result.verdict.reasons,
+            suggested_responses: result.verdict.suggested_responses,
           });
         })
         .catch((err) => {
@@ -262,6 +263,49 @@ chrome.runtime.onMessage.addListener(
         });
 
       return true; // keep message channel open for async response
+    }
+
+    // ── Manual re-analysis trigger from popup ────────────────────────────
+    if (request.type === "REANALYZE_NOW") {
+      chrome.storage.local.get([CACHED_RESULT_KEY], (stored) => {
+        const cached = stored[CACHED_RESULT_KEY] as StoredResult | null;
+        if (!cached) {
+          sendResponse({ success: false, error: "No cached conversation to re-analyze." });
+          return;
+        }
+
+        // Re-build an analysis message from the cached conversation text
+        const fakeMsg: CapturedMessage = {
+          id:             cached.message_id,
+          conversationId: "reanalyze",
+          sender:         "Client",
+          senderRole:     "other",
+          text:           cached.message_text,
+          timestamp:      new Date().toISOString(),
+          capturedAt:     Date.now(),
+          pageUrl:        "",
+        };
+
+        analyzeWithBackend(fakeMsg)
+          .then((result) => storeResult(result, fakeMsg).then(() => result))
+          .then((result) => {
+            const level = backendLevelToFrontend(result.verdict.trust_score.level);
+            console.log(`[ShadowSense BG] Re-analysis complete — score: ${result.trust_score} level: ${level}`);
+            sendResponse({
+              success:            true,
+              trust_score:        result.trust_score,
+              level,
+              analysis_id:        result.analysis_id,
+              reasons:            result.verdict.reasons,
+              suggested_responses: result.verdict.suggested_responses,
+            });
+          })
+          .catch((err) => {
+            console.error("[ShadowSense BG] Re-analysis failed:", err.message);
+            sendResponse({ success: false, error: err.message });
+          });
+      });
+      return true; // keep channel open for async response
     }
 
     // ── Popup requesting latest result ───────────────────────────────────────
