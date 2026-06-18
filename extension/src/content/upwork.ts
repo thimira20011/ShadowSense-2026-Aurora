@@ -941,46 +941,155 @@ class UpworkChatObserver {
     style.id = 'ss-intervention-styles';
     style.textContent = `
       :root {
+        /* Neutral Palette (Light) */
+        --ss-color-bg-base: #fafafa;
+        --ss-color-bg-surface: #ffffff;
+        --ss-color-border-primary: #e4e4e7;
+        --ss-color-border-secondary: #f4f4f5;
+        --ss-color-text-primary: #09090b;
+        --ss-color-text-secondary: #52525b;
+        --ss-color-text-tertiary: #a1a1aa;
+
+        /* Risk State (Red) */
         --ss-color-risk-bg: #fcebeb;
         --ss-color-risk-border: #e24b4a55;
         --ss-color-risk-text: #a32d2d;
         --ss-color-risk-primary: #e24b4a;
 
+        /* Advisory State (Amber) */
         --ss-color-warn-bg: #faeeda;
         --ss-color-warn-border: #ef9f2755;
         --ss-color-warn-text: #854f0b;
         --ss-color-warn-primary: #ba7517;
 
+        /* Clear State (Green) */
         --ss-color-clear-bg: #e1f5ee;
         --ss-color-clear-border: #1d9e7555;
         --ss-color-clear-text: #0f6e56;
         --ss-color-clear-primary: #1d9e75;
 
+        /* Accent (Purple) */
+        --ss-color-accent: #7f56d9;
+        --ss-color-accent-light: #7b61ff;
+        --ss-color-accent-bg: #eeedfe;
+        --ss-color-accent-text: #3c3489;
+
         --ss-border-radius-sm: 6px;
         --ss-border-radius-md: 10px;
         --ss-border-radius-lg: 16px;
+
+        /* Gradients */
+        --ss-grad-risk: linear-gradient(135deg, #fff5f5 0%, #fee2e2 100%);
+        --ss-grad-warn: linear-gradient(135deg, #fffbeb 0%, #fef3c7 100%);
+        --ss-grad-clear: linear-gradient(135deg, #ecfdf5 0%, #d1fae5 100%);
+        --ss-grad-accent: linear-gradient(135deg, #eeedfe 0%, #e0e0ff 100%);
+
+        /* Glowing shadows */
+        --ss-glow-risk: 0 8px 32px rgba(226, 75, 74, 0.15), 0 2px 8px rgba(226, 75, 74, 0.08);
+        --ss-glow-warn: 0 8px 32px rgba(239, 159, 39, 0.15), 0 2px 8px rgba(239, 159, 39, 0.08);
+        --ss-glow-clear: 0 8px 32px rgba(29, 158, 117, 0.15), 0 2px 8px rgba(29, 158, 117, 0.08);
+        --ss-glow-accent: 0 8px 32px rgba(123, 97, 255, 0.15), 0 2px 8px rgba(123, 97, 255, 0.08);
+      }
+
+      /* Dark Mode support */
+      @media (prefers-color-scheme: dark) {
+        :root {
+          --ss-color-bg-base: #18181b;
+          --ss-color-bg-surface: #27272a;
+          --ss-color-border-primary: #3f3f46;
+          --ss-color-border-secondary: #2c2c30;
+          --ss-color-text-primary: #fafafa;
+          --ss-color-text-secondary: #a1a1aa;
+          --ss-color-text-tertiary: #71717a;
+
+          --ss-color-risk-bg: #2d1515;
+          --ss-color-risk-border: #e24b4a40;
+          --ss-color-risk-text: #fca5a5;
+          --ss-color-risk-primary: #ef4444;
+
+          --ss-color-warn-bg: #2d1f08;
+          --ss-color-warn-border: #ef9f2740;
+          --ss-color-warn-text: #fcd34d;
+          --ss-color-warn-primary: #f59e0b;
+
+          --ss-color-clear-bg: #0d2e22;
+          --ss-color-clear-border: #1d9e7540;
+          --ss-color-clear-text: #6ee7b7;
+          --ss-color-clear-primary: #10b981;
+
+          --ss-color-accent: #a78bfa;
+          --ss-color-accent-light: #a78bfa;
+          --ss-color-accent-bg: #1e1a3a;
+          --ss-color-accent-text: #c4b5fd;
+
+          --ss-grad-risk: linear-gradient(135deg, #2d1515 0%, #1c0b0b 100%);
+          --ss-grad-warn: linear-gradient(135deg, #2d1f08 0%, #1e1302 100%);
+          --ss-grad-clear: linear-gradient(135deg, #0d2e22 0%, #081e16 100%);
+          --ss-grad-accent: linear-gradient(135deg, #1e1a3a 0%, #121024 100%);
+        }
+      }
+
+      /* Explicit dark theme targets for platforms with custom dark theme toggles */
+      html[data-theme="dark"],
+      body.dark-mode,
+      body[class*="dark"],
+      .dark,
+      .dark-theme {
+        --ss-color-bg-base: #18181b;
+        --ss-color-bg-surface: #27272a;
+        --ss-color-border-primary: #3f3f46;
+        --ss-color-border-secondary: #2c2c30;
+        --ss-color-text-primary: #fafafa;
+        --ss-color-text-secondary: #a1a1aa;
+        --ss-color-text-tertiary: #71717a;
+
+        --ss-color-risk-bg: #2d1515;
+        --ss-color-risk-border: #e24b4a40;
+        --ss-color-risk-text: #fca5a5;
+        --ss-color-risk-primary: #ef4444;
+
+        --ss-color-warn-bg: #2d1f08;
+        --ss-color-warn-border: #ef9f2740;
+        --ss-color-warn-text: #fcd34d;
+        --ss-color-warn-primary: #f59e0b;
+
+        --ss-color-clear-bg: #0d2e22;
+        --ss-color-clear-border: #1d9e7540;
+        --ss-color-clear-text: #6ee7b7;
+        --ss-color-clear-primary: #10b981;
+
+        --ss-color-accent: #a78bfa;
+        --ss-color-accent-light: #a78bfa;
+        --ss-color-accent-bg: #1e1a3a;
+        --ss-color-accent-text: #c4b5fd;
+
+        --ss-grad-risk: linear-gradient(135deg, #2d1515 0%, #1c0b0b 100%);
+        --ss-grad-warn: linear-gradient(135deg, #2d1f08 0%, #1e1302 100%);
+        --ss-grad-clear: linear-gradient(135deg, #0d2e22 0%, #081e16 100%);
+        --ss-grad-accent: linear-gradient(135deg, #1e1a3a 0%, #121024 100%);
       }
 
       .ss-intervention-wrapper {
-        border: 1.5px dashed var(--ss-color-risk-primary) !important;
+        border: 1.5px solid var(--ss-color-risk-border) !important;
         border-radius: var(--ss-border-radius-lg) !important;
-        background: #fff5f5 !important;
+        background: var(--ss-grad-risk) !important;
         overflow: hidden !important;
         margin-bottom: 16px !important;
         margin-top: 16px !important;
         font-family: 'Plus Jakarta Sans', system-ui, -apple-system, sans-serif !important;
-        box-shadow: 0 4px 12px rgba(0,0,0,0.04) !important;
+        box-shadow: var(--ss-glow-risk) !important;
         transition: all 0.3s ease !important;
         width: 100% !important;
         box-sizing: border-box !important;
       }
       .ss-intervention-wrapper.ss-advisory {
-        border-color: var(--ss-color-warn-primary) !important;
-        background: #fffcfa !important;
+        border-color: var(--ss-color-warn-border) !important;
+        background: var(--ss-grad-warn) !important;
+        box-shadow: var(--ss-glow-warn) !important;
       }
       .ss-intervention-banner {
         background: var(--ss-color-risk-primary) !important;
-        color: white !important;
+        color: var(--ss-color-bg-surface) !important;
         padding: 8px 14px !important;
         display: flex !important;
         align-items: center !important;
@@ -990,6 +1099,7 @@ class UpworkChatObserver {
       }
       .ss-intervention-wrapper.ss-advisory .ss-intervention-banner {
         background: var(--ss-color-warn-primary) !important;
+        color: var(--ss-color-bg-surface) !important;
       }
       .ss-intervention-banner-left {
         display: flex !important;
@@ -998,10 +1108,10 @@ class UpworkChatObserver {
       }
       .ss-intervention-body {
         padding: 12px 14px !important;
-        background: #fff8f8 !important;
+        background: transparent !important;
       }
       .ss-intervention-wrapper.ss-advisory .ss-intervention-body {
-        background: #fffdfb !important;
+        background: transparent !important;
       }
       .ss-intervention-title {
         font-size: 13px !important;
@@ -1014,12 +1124,12 @@ class UpworkChatObserver {
       }
       .ss-intervention-desc {
         font-size: 12px !important;
-        color: #632222 !important;
+        color: var(--ss-color-text-secondary) !important;
         line-height: 1.4 !important;
         margin-bottom: 10px !important;
       }
       .ss-intervention-wrapper.ss-advisory .ss-intervention-desc {
-        color: #633e14 !important;
+        color: var(--ss-color-text-secondary) !important;
         margin-bottom: 0px !important;
       }
       .ss-intervention-actions {
@@ -1027,18 +1137,19 @@ class UpworkChatObserver {
         gap: 8px !important;
       }
       .ss-inter-btn-white {
-        background: white !important;
-        border: 1px solid var(--ss-color-risk-border) !important;
-        color: var(--ss-color-risk-text) !important;
+        background: var(--ss-color-bg-surface) !important;
+        border: 1px solid var(--ss-color-border-primary) !important;
+        color: var(--ss-color-text-secondary) !important;
         font-size: 11px !important;
         padding: 6px 12px !important;
         border-radius: var(--ss-border-radius-sm) !important;
         font-weight: 600 !important;
         cursor: pointer !important;
-        transition: background 0.2s !important;
+        transition: background 0.2s, border-color 0.2s !important;
       }
       .ss-inter-btn-white:hover {
-        background: #fff1f1 !important;
+        background: var(--ss-color-border-secondary) !important;
+        border-color: var(--ss-color-border-primary) !important;
       }
       .ss-inter-btn-accent {
         background: var(--ss-color-risk-primary) !important;
@@ -1052,7 +1163,8 @@ class UpworkChatObserver {
         transition: background 0.2s !important;
       }
       .ss-inter-btn-accent:hover {
-        background: #cc3f3e !important;
+        background: var(--ss-color-risk-primary) !important;
+        opacity: 0.9 !important;
       }
       .ss-floating-mini-badge {
         align-self: center !important;
@@ -1082,8 +1194,10 @@ class UpworkChatObserver {
         left: 0 !important;
         right: 0 !important;
         bottom: 0 !important;
-        background: rgba(252, 235, 235, 0.82) !important;
-        backdrop-filter: blur(1.5px) !important;
+        background: var(--ss-color-risk-bg) !important;
+        opacity: 0.94 !important;
+        backdrop-filter: blur(4px) !important;
+        -webkit-backdrop-filter: blur(4px) !important;
         z-index: 10000 !important;
         display: flex !important;
         align-items: center !important;
@@ -1109,7 +1223,7 @@ class UpworkChatObserver {
         border: none !important;
         cursor: pointer !important;
         font-size: 12px !important;
-        color: white !important;
+        color: var(--ss-color-bg-surface) !important;
         padding: 0 !important;
         font-weight: bold !important;
       }
@@ -1202,7 +1316,31 @@ class UpworkChatObserver {
           }
         }, (res) => {
           console.log("[ShadowSense] Override submitted:", res);
-          this.cleanInterventions();
+          const body = overlay.querySelector('.ss-intervention-body');
+          if (body) {
+            overlay.style.borderColor = 'var(--ss-color-clear-primary)';
+            overlay.style.background = 'linear-gradient(135deg, var(--ss-color-clear-bg) 0%, #ffffff 100%)';
+            const banner = overlay.querySelector('.ss-intervention-banner');
+            if (banner) {
+              (banner as HTMLElement).style.background = 'var(--ss-color-clear-primary)';
+              const bannerText = banner.querySelector('span');
+              if (bannerText) bannerText.textContent = '✓ Warning Overridden';
+            }
+            body.innerHTML = `
+              <div style="display:flex;align-items:flex-start;gap:10px;">
+                <div style="width:24px;height:24px;border-radius:50%;background:var(--ss-color-clear-bg);border:1px solid var(--ss-color-clear-border);display:flex;align-items:center;justify-content:center;color:var(--ss-color-clear-primary);font-weight:bold;flex-shrink:0;">✓</div>
+                <div>
+                  <div class="ss-intervention-title" style="color: var(--ss-color-clear-text);margin-bottom:2px;">Override Processed</div>
+                  <div class="ss-intervention-desc" style="color: var(--ss-color-clear-text);margin:0;">Safety warning bypassed successfully.</div>
+                </div>
+              </div>
+            `;
+            const inputOverlay = document.querySelector('.ss-input-blocking-overlay');
+            if (inputOverlay) inputOverlay.remove();
+            const inputParent = document.querySelector('.ss-high-risk-input-border');
+            if (inputParent) inputParent.classList.remove('ss-high-risk-input-border');
+          }
+          setTimeout(() => this.cleanInterventions(), 1000);
         });
       });
 
@@ -1219,9 +1357,23 @@ class UpworkChatObserver {
           console.log("[ShadowSense] Report submitted:", res);
           const body = overlay.querySelector('.ss-intervention-body');
           if (body) {
+            overlay.style.borderColor = 'var(--ss-color-clear-primary)';
+            overlay.style.background = 'linear-gradient(135deg, var(--ss-color-clear-bg) 0%, #ffffff 100%)';
+            overlay.style.boxShadow = '0 8px 32px rgba(16, 185, 129, 0.08)';
+            const banner = overlay.querySelector('.ss-intervention-banner');
+            if (banner) {
+              (banner as HTMLElement).style.background = 'var(--ss-color-clear-primary)';
+              const bannerText = banner.querySelector('span');
+              if (bannerText) bannerText.textContent = '✓ ShadowSense Threat Flagged';
+            }
             body.innerHTML = `
-              <div class="ss-intervention-title" style="color: var(--ss-color-clear-text)">Thank you for reporting!</div>
-              <div class="ss-intervention-desc" style="color: var(--ss-color-clear-text)">The threat signature has been flagged for analysis. You can now close this conversation safely.</div>
+              <div style="display:flex;align-items:flex-start;gap:10px;">
+                <div style="width:24px;height:24px;border-radius:50%;background:var(--ss-color-clear-bg);border:1px solid var(--ss-color-clear-border);display:flex;align-items:center;justify-content:center;color:var(--ss-color-clear-primary);font-weight:bold;flex-shrink:0;">✓</div>
+                <div>
+                  <div class="ss-intervention-title" style="color: var(--ss-color-clear-text);margin-bottom:2px;">Thank you for reporting!</div>
+                  <div class="ss-intervention-desc" style="color: var(--ss-color-clear-text);margin:0;">The threat signature has been flagged for analysis. You can now close this conversation safely.</div>
+                </div>
+              </div>
             `;
           }
         });
@@ -1308,10 +1460,25 @@ class UpworkChatObserver {
           console.log("[ShadowSense] Report submitted:", res);
           const body = overlay.querySelector('.ss-intervention-body');
           if (body) {
+            overlay.style.borderColor = 'var(--ss-color-clear-primary)';
+            overlay.style.background = 'linear-gradient(135deg, var(--ss-color-clear-bg) 0%, #ffffff 100%)';
+            overlay.style.boxShadow = '0 8px 32px rgba(16, 185, 129, 0.08)';
+            const banner = overlay.querySelector('.ss-intervention-banner');
+            if (banner) {
+              (banner as HTMLElement).style.background = 'var(--ss-color-clear-primary)';
+              const bannerText = banner.querySelector('span');
+              if (bannerText) bannerText.textContent = '✓ ShadowSense Threat Flagged';
+            }
             body.innerHTML = `
-              <div class="ss-intervention-title" style="color: var(--ss-color-clear-text)">Thank you for reporting!</div>
-              <div class="ss-intervention-desc" style="color: var(--ss-color-clear-text)">The warning has been reported to the community moderation system.</div>
+              <div style="display:flex;align-items:flex-start;gap:10px;">
+                <div style="width:24px;height:24px;border-radius:50%;background:var(--ss-color-clear-bg);border:1px solid var(--ss-color-clear-border);display:flex;align-items:center;justify-content:center;color:var(--ss-color-clear-primary);font-weight:bold;flex-shrink:0;">✓</div>
+                <div>
+                  <div class="ss-intervention-title" style="color: var(--ss-color-clear-text);margin-bottom:2px;">Thank you for reporting!</div>
+                  <div class="ss-intervention-desc" style="color: var(--ss-color-clear-text);margin:0;">The warning has been reported to the community moderation system.</div>
+                </div>
+              </div>
             `;
+            setTimeout(() => this.cleanInterventions(), 2000);
           }
         });
       });

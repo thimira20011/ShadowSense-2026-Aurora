@@ -1,28 +1,54 @@
-"""Identity verification agent — Google Gemini Flash-Lite implementation."""
+"""Identity verification agent — three-tier fallback implementation.
+
+Fallback chain (fastest first when primary is unavailable):
+    Tier 1 → Google Gemini Flash  (primary, best quality, ~1.6 s)
+    Tier 2 → Ollama / deepseek-r1 (secondary, local, 15 s hard timeout)
+    Tier 3 → Enriched rule-based  (tertiary, < 1 ms, always available)
+
+Why three tiers?
+  - Gemini free-tier quotas can be exhausted (daily cap).
+  - Ollama is already running for the main analysis pipeline so we reuse it,
+    but we cap it at 15 s so it never blocks the overall 90 s orchestrator
+    timeout, and we use a dedicated thread so it doesn't compete with the
+    deepseek-r1 main call at the socket level.
+  - The enriched rule-based tier now analyses BOTH profile metadata AND the
+    message text for scam signals, so it's much stronger than the old version.
+"""
 import time
 import json
 import logging
+import threading
+import re
+import requests
+from concurrent.futures import ThreadPoolExecutor, TimeoutError as FuturesTimeoutError
 from typing import Any
 
-import threading
 from google import genai
 from google.genai import types as genai_types
 
-from backend.config import GEMINI_API_KEYS
-from ._crewai_stub import Agent  # TODO: replace with `from crewai import Agent` once crewai-core is on PyPI
+from backend.config import GEMINI_API_KEYS, OLLAMA_HOST, DEEPSEEK_MODEL
+from ._crewai_stub import Agent
 
 logger = logging.getLogger(__name__)
 
-# Model: Gemini 2.0 Flash (stable free tier, full model name for google-genai SDK)
-_GEMINI_MODEL = "models/gemini-2.0-flash"
+# ── Model constants ───────────────────────────────────────────────────────────
+_GEMINI_MODEL  = "models/gemini-2.0-flash"
+_OLLAMA_TIMEOUT = 15          # seconds hard-cap for the Ollama tier
+_OLLAMA_MAX_TOKENS = 512      # identity response is tiny; keep inference fast
+
+# Shared executor for Ollama calls — 1 worker so we don't pile up requests
+# when Gemini quota is chronically exhausted.
+_ollama_executor = ThreadPoolExecutor(max_workers=1, thread_name_prefix="identity-ollama")
 
 
 class IdentityAgent:
     """Analyses account profile metadata for identity anomalies and fraud signals.
 
-    Accepts a profile metadata dict and returns a structured risk assessment.
-    Runs real inference via Google Gemini Flash-Lite; falls back to rule-based
-    mock mode when the API key is absent or invalid.
+    Accepts a profile metadata dict (and optional raw message text) and returns
+    a structured risk assessment.
+
+    Fallback chain:
+        Gemini → Ollama (15 s timeout) → Enriched rule-based
     """
 
     def __init__(self) -> None:
@@ -40,164 +66,145 @@ class IdentityAgent:
             allow_delegation=False,
         )
 
-        self._lock = threading.Lock()
-        self._index = 0
-        self._clients = []
-        self._keys = []
+        self._lock   = threading.Lock()
+        self._index  = 0
+        self._clients: list[genai.Client] = []
+        self._keys:   list[str] = []
 
         for key in GEMINI_API_KEYS:
             if key and "placeholder" not in str(key).lower():
                 self._clients.append(genai.Client(api_key=key))
                 self._keys.append(key)
 
-        # Expose a default api_key for backward compatibility
         self.api_key = self._keys[0] if self._keys else None
 
         if self._clients:
             self.is_mock = False
-            logger.info("IdentityAgent initialised with %d Gemini clients, model: %s", len(self._clients), _GEMINI_MODEL)
+            logger.info(
+                "IdentityAgent initialised with %d Gemini client(s), model: %s",
+                len(self._clients), _GEMINI_MODEL,
+            )
         else:
             self.is_mock = True
-            logger.warning(
-                "No valid GEMINI_API_KEYS configured. Running IdentityAgent in mock mode."
-            )
+            logger.warning("No valid GEMINI_API_KEYS configured. IdentityAgent will use Ollama/rule fallback.")
 
-    # ------------------------------------------------------------------
+    # ─────────────────────────────────────────────────────────────────────────
     # Public API
-    # ------------------------------------------------------------------
+    # ─────────────────────────────────────────────────────────────────────────
 
-    def verify(self, identity_data: dict[str, Any]) -> dict[str, Any]:
+    def verify(
+        self,
+        identity_data: dict[str, Any],
+        message_text: str = "",
+    ) -> dict[str, Any]:
         """Verify a profile's identity and return a risk assessment.
 
         Args:
-            identity_data: A dict with any combination of:
-                - account_age_days  (int)   — days since account creation
-                - reviews           (int)   — number of completed reviews
-                - verified          (bool)  — platform-verified badge
-                - username          (str)   — display name / handle
-                - country           (str)   — stated country
-                - bio               (str)   — profile bio text
+            identity_data: Dict with any of:
+                - account_age_days  (int)
+                - reviews           (int)
+                - verified          (bool)
+                - username          (str)
+                - country           (str)
+                - bio               (str)
+            message_text: The raw chat message (used by the enriched rule tier
+                          to cross-check profile risk against message content).
 
         Returns:
-            Dict with keys:
-                - verified        (bool)    — True if profile looks legitimate
-                - identity_risk   (float)   — 0–100 risk score
-                - anomalies       (list)    — detected red-flag descriptions
-                - confidence      (float)   — model confidence 0.0–1.0
-
-        Edge-case handling (Week 4):
-            - Empty dict / None  → moderate risk (30) returned immediately.
-              An absent profile is itself a mild signal, never zero-risk.
+            Dict with:
+                - verified        (bool)
+                - identity_risk   (float, 0–100)
+                - anomalies       (list[str])
+                - confidence      (float, 0.0–1.0)
+                - tier_used       (str)  — which tier produced the result
         """
         start = time.perf_counter()
 
-        # ── Guard: no profile data at all ───────────────────────────────────
         if not identity_data:
-            logger.info("IdentityAgent: empty identity_data received — returning moderate risk.")
+            logger.info("IdentityAgent: empty identity_data — returning moderate risk.")
             return {
                 "verified":      False,
                 "identity_risk": 30.0,
                 "anomalies":     ["No profile data provided — identity could not be assessed"],
                 "confidence":    0.5,
+                "tier_used":     "guard",
             }
 
-        if self.is_mock:
-            result = self._mock_verify(identity_data)
-            latency = time.perf_counter() - start
-            logger.info("IdentityAgent latency (mock): %.4fs", latency)
+        # ── Tier 1: Gemini ────────────────────────────────────────────────────
+        if not self.is_mock:
+            result = self._try_gemini(identity_data, start)
+            if result is not None:
+                return result
+
+        # ── Tier 2: Ollama ───────────────────────────────────────────────────
+        result = self._try_ollama(identity_data, message_text, start)
+        if result is not None:
             return result
 
-        # Try all available API keys in round-robin order before falling back to mock
+        # ── Tier 3: Enriched rule-based ───────────────────────────────────────
+        return self._enriched_rules(identity_data, message_text, start)
+
+    # ─────────────────────────────────────────────────────────────────────────
+    # Tier 1 — Gemini
+    # ─────────────────────────────────────────────────────────────────────────
+
+    def _try_gemini(
+        self, identity_data: dict[str, Any], start: float
+    ) -> dict[str, Any] | None:
+        """Try all Gemini keys in round-robin. Returns None if all are quota-limited."""
         num_clients = len(self._clients)
         last_exc: Exception | None = None
 
         for attempt in range(num_clients):
             with self._lock:
-                current_idx = self._index
-                client = self._clients[current_idx]
-                key_info = self._keys[current_idx]
-                # Advance index for the next caller (round-robin)
+                idx    = self._index
+                client = self._clients[idx]
+                key    = self._keys[idx]
                 self._index = (self._index + 1) % num_clients
 
-            masked_key = f"...{key_info[-6:]}" if len(key_info) > 6 else key_info
+            masked = f"...{key[-6:]}" if len(key) > 6 else key
             logger.info(
-                "IdentityAgent: Using Gemini API Key index %d (masked: %s) [attempt %d/%d]",
-                current_idx, masked_key, attempt + 1, num_clients,
+                "IdentityAgent[Gemini]: key index %d (%s), attempt %d/%d",
+                idx, masked, attempt + 1, num_clients,
             )
 
             try:
-                result = self._gemini_verify_with_client(client, identity_data)
+                result = self._gemini_verify(client, identity_data)
+                result["tier_used"] = "gemini"
                 latency = time.perf_counter() - start
-                logger.info("IdentityAgent latency (Gemini %s): %.4fs", _GEMINI_MODEL, latency)
+                logger.info("IdentityAgent[Gemini] latency: %.4fs", latency)
                 return result
 
             except Exception as exc:
-                exc_str = str(exc)
                 last_exc = exc
+                exc_str  = str(exc)
 
-                # 429 RESOURCE_EXHAUSTED → try next key
                 if "429" in exc_str or "RESOURCE_EXHAUSTED" in exc_str:
                     logger.warning(
-                        "IdentityAgent: Key index %d hit quota limit (429). "
-                        "Trying next key... [%d/%d remaining]",
-                        current_idx, num_clients - attempt - 1, num_clients,
+                        "IdentityAgent[Gemini]: key %d quota-limited (429). "
+                        "Trying next key… [%d/%d remaining]",
+                        idx, num_clients - attempt - 1, num_clients,
                     )
-                    continue  # try next key
+                    continue
 
-                # Any other error (auth, network, parse) → fall back immediately
-                latency = time.perf_counter() - start
+                # Non-quota error — skip straight to Ollama
                 logger.error(
-                    "Gemini API error (non-quota): %s. Falling back to rule-based mock. Latency: %.4fs",
-                    exc, latency,
+                    "IdentityAgent[Gemini]: non-quota error: %s. "
+                    "Falling through to Ollama tier.", exc,
                 )
-                return self._mock_verify(identity_data)
+                return None
 
-        # All keys exhausted (all hit 429)
-        latency = time.perf_counter() - start
         logger.error(
-            "All %d Gemini API keys exhausted (all quota-limited). "
-            "Falling back to rule-based mock. Last error: %s. Latency: %.4fs",
-            num_clients, last_exc, latency,
+            "IdentityAgent[Gemini]: all %d key(s) exhausted. "
+            "Last error: %s. Trying Ollama tier.",
+            num_clients, last_exc,
         )
-        return self._mock_verify(identity_data)
+        return None
 
-    # ------------------------------------------------------------------
-    # Private helpers
-    # ------------------------------------------------------------------
-
-    def _build_prompt(self, identity_data: dict[str, Any]) -> str:
-        profile_str = json.dumps(identity_data, indent=2)
-        return f"""You are an identity fraud analyst for freelance platforms (Fiverr, Upwork, etc.).
-
-Analyse the following client profile metadata and assess its legitimacy:
-
-{profile_str}
-
-Respond with ONLY a valid JSON object — no markdown, no explanation — matching this schema exactly:
-{{
-  "identity_risk": <integer 0-100>,
-  "anomalies": [<list of concise strings describing each detected red flag>],
-  "confidence": <float 0.0-1.0>
-}}
-
-Scoring guide:
-- 0–29   : Profile looks legitimate
-- 30–59  : Moderate risk (e.g. very new account, no reviews)
-- 60–79  : High risk (multiple red flags)
-- 80–100 : Extremely suspicious (consistent with fake / bot account)
-
-Key signals to evaluate:
-- account_age_days < 7  → high risk
-- reviews == 0 AND account_age_days < 30 → medium risk
-- verified == false alongside other flags → raises risk
-- Bio that is generic / copied / empty → small risk boost"""
-
-    def _gemini_verify_with_client(
+    def _gemini_verify(
         self, client: genai.Client, identity_data: dict[str, Any]
     ) -> dict[str, Any]:
-        """Run Gemini inference with a specific client instance."""
         prompt = self._build_prompt(identity_data)
-
         response = client.models.generate_content(
             model=_GEMINI_MODEL,
             contents=prompt,
@@ -206,37 +213,96 @@ Key signals to evaluate:
                 response_mime_type="application/json",
             ),
         )
-
         raw = response.text.strip() if response.text else "{}"
-        if raw.startswith("```"):
-            lines = raw.splitlines()
-            raw = "\n".join(
-                line for line in lines if not line.strip().startswith("```")
-            ).strip()
+        return self._parse_llm_response(raw)
 
-        parsed = json.loads(raw)
-        identity_risk = float(parsed.get("identity_risk", 0.0))
-        anomalies = parsed.get("anomalies", [])
-        confidence = float(parsed.get("confidence", 1.0))
+    # ─────────────────────────────────────────────────────────────────────────
+    # Tier 2 — Ollama (deepseek-r1, 15 s hard timeout, non-blocking)
+    # ─────────────────────────────────────────────────────────────────────────
 
-        return {
-            "verified":      identity_risk < 40,
-            "identity_risk": identity_risk,
-            "anomalies":     anomalies,
-            "confidence":    confidence,
-        }
+    def _try_ollama(
+        self,
+        identity_data: dict[str, Any],
+        message_text: str,
+        start: float,
+    ) -> dict[str, Any] | None:
+        """Call Ollama in a thread-pool worker with a 15 s timeout.
 
-    def _mock_verify(self, identity_data: dict[str, Any]) -> dict[str, Any]:
-        """Rule-based fallback that mirrors the Gemini response schema."""
+        Uses the same deepseek-r1 model that runs the main analysis pipeline,
+        but with a tiny max_tokens cap so it completes quickly and doesn't
+        starve the main call if they happen to be concurrent.
+        """
+        logger.info("IdentityAgent[Ollama]: attempting identity analysis via %s…", DEEPSEEK_MODEL)
+
+        def _call() -> dict[str, Any]:
+            prompt = self._build_prompt(identity_data, message_text=message_text)
+            payload = {
+                "model":  DEEPSEEK_MODEL,
+                "prompt": prompt,
+                "stream": False,
+                "options": {
+                    "temperature": 0.0,
+                    "num_predict": _OLLAMA_MAX_TOKENS,
+                },
+            }
+            resp = requests.post(
+                f"{OLLAMA_HOST}/api/generate",
+                json=payload,
+                timeout=_OLLAMA_TIMEOUT,
+            )
+            resp.raise_for_status()
+            raw = resp.json().get("response", "{}").strip()
+            return self._parse_llm_response(raw)
+
+        future = _ollama_executor.submit(_call)
+        try:
+            result = future.result(timeout=_OLLAMA_TIMEOUT)
+            result["tier_used"] = "ollama"
+            latency = time.perf_counter() - start
+            logger.info("IdentityAgent[Ollama] latency: %.4fs", latency)
+            return result
+
+        except FuturesTimeoutError:
+            future.cancel()
+            logger.warning(
+                "IdentityAgent[Ollama]: timed out after %ds. "
+                "Falling through to enriched rule tier.", _OLLAMA_TIMEOUT,
+            )
+            return None
+
+        except Exception as exc:
+            logger.warning(
+                "IdentityAgent[Ollama]: error: %s. "
+                "Falling through to enriched rule tier.", exc,
+            )
+            return None
+
+    # ─────────────────────────────────────────────────────────────────────────
+    # Tier 3 — Enriched rule-based
+    # ─────────────────────────────────────────────────────────────────────────
+
+    def _enriched_rules(
+        self,
+        identity_data: dict[str, Any],
+        message_text: str,
+        start: float,
+    ) -> dict[str, Any]:
+        """Rule-based fallback using BOTH profile metadata AND message content.
+
+        Significantly stronger than the old mock_verify because it cross-checks
+        the message for scam signals that correlate with weak profiles.
+        """
         identity_risk = 0.0
-        anomalies: list = []
+        anomalies: list[str] = []
         confidence = 0.90
 
         age      = identity_data.get("account_age_days")
         reviews  = identity_data.get("reviews")
         verified = identity_data.get("verified", True)
         bio: str = identity_data.get("bio", "") or ""
+        msg      = message_text.lower()
 
+        # ── Profile rules ─────────────────────────────────────────────────────
         if age is not None:
             if age < 3:
                 anomalies.append("Account is less than 3 days old")
@@ -260,13 +326,132 @@ Key signals to evaluate:
             anomalies.append("Empty profile bio")
             identity_risk = max(identity_risk, 15.0)
 
-        # Compound penalty: new + no reviews + not verified
+        # Compound penalty: new + no reviews + unverified
         if age is not None and age < 14 and reviews == 0 and not verified:
             identity_risk = min(100.0, identity_risk + 20.0)
             anomalies.append("Compound risk: new account, no reviews, no verification")
 
+        # ── Message content signals (new in enriched tier) ────────────────────
+        # These raise identity risk when the message content matches patterns
+        # that are highly correlated with fake / scam accounts.
+
+        _TOO_GOOD = [
+            "extremely high pay", "very high pay", "big budget", "huge project",
+            "highest pay", "willing to pay more", "pay you extra",
+            "long term work", "ongoing project", "i have lots of work",
+            "i can offer", "generous payment",
+        ]
+        if any(p in msg for p in _TOO_GOOD):
+            anomalies.append("Message contains 'too good to be true' payment lure")
+            identity_risk = min(100.0, identity_risk + 15.0)
+
+        _OFF_PLATFORM = [
+            "telegram", "whatsapp", "signal", "discord",
+            "outside the platform", "outside fiverr", "outside upwork",
+            "contact me directly", "reach me on", "email me at",
+            "my personal email",
+        ]
+        if any(p in msg for p in _OFF_PLATFORM):
+            anomalies.append("Message requests off-platform communication")
+            identity_risk = min(100.0, identity_risk + 20.0)
+
+        _PAYMENT_BYPASS = [
+            "paypal", "crypto", "bitcoin", "western union", "gift card",
+            "wire transfer", "bank transfer", "avoid fees", "skip the contract",
+            "direct payment", "outside escrow",
+        ]
+        if any(p in msg for p in _PAYMENT_BYPASS):
+            anomalies.append("Message contains off-platform payment bypass attempt")
+            identity_risk = min(100.0, identity_risk + 25.0)
+
+        _URGENCY = [
+            "respond immediately", "reply asap", "urgent", "right now",
+            "time sensitive", "expires soon", "last chance", "only today",
+            "respond within", "must start today",
+        ]
+        if any(p in msg for p in _URGENCY):
+            anomalies.append("Message uses artificial urgency pressure")
+            identity_risk = min(100.0, identity_risk + 10.0)
+
+        _CREDENTIAL = [
+            "verify your account", "your account is suspended",
+            "login to confirm", "send your credentials", "share your password",
+            "billing verification", "fiverr support", "upwork support",
+        ]
+        if any(p in msg for p in _CREDENTIAL):
+            anomalies.append("Message contains credential/phishing attempt")
+            identity_risk = min(100.0, identity_risk + 35.0)
+
         if not anomalies:
             confidence = 1.0
+
+        latency = time.perf_counter() - start
+        logger.info(
+            "IdentityAgent[Rules]: identity_risk=%.1f, anomalies=%d, latency=%.4fs",
+            identity_risk, len(anomalies), latency,
+        )
+
+        return {
+            "verified":      identity_risk < 40,
+            "identity_risk": identity_risk,
+            "anomalies":     anomalies,
+            "confidence":    confidence,
+            "tier_used":     "rules",
+        }
+
+    # ─────────────────────────────────────────────────────────────────────────
+    # Shared helpers
+    # ─────────────────────────────────────────────────────────────────────────
+
+    def _build_prompt(
+        self,
+        identity_data: dict[str, Any],
+        message_text: str = "",
+    ) -> str:
+        profile_str = json.dumps(identity_data, indent=2)
+        msg_section = (
+            f"\n\nThe client sent this message (use it as additional context):\n{message_text[:800]}"
+            if message_text.strip()
+            else ""
+        )
+        return (
+            "You are an identity fraud analyst for freelance platforms (Fiverr, Upwork).\n\n"
+            "Analyse the following client profile metadata and assess its legitimacy:"
+            f"\n\n{profile_str}{msg_section}\n\n"
+            "Respond with ONLY a valid JSON object — no markdown, no explanation:\n"
+            "{\n"
+            '  "identity_risk": <integer 0-100>,\n'
+            '  "anomalies": [<concise strings for each red flag>],\n'
+            '  "confidence": <float 0.0-1.0>\n'
+            "}\n\n"
+            "Scoring: 0–29 legitimate, 30–59 moderate risk, 60–79 high risk, 80–100 extremely suspicious.\n"
+            "Key signals: account_age_days < 7 → high risk; reviews == 0 AND age < 30 → medium risk; "
+            "unverified + new + no reviews → compound penalty; "
+            "message contains payment lures or off-platform requests → raise risk."
+        )
+
+    def _parse_llm_response(self, raw: str) -> dict[str, Any]:
+        """Robustly extract JSON from an LLM response, stripping markdown fences."""
+        # Strip markdown fences (```json ... ```)
+        if raw.startswith("```"):
+            raw = re.sub(r"^```[a-z]*\n?", "", raw, flags=re.MULTILINE)
+            raw = re.sub(r"\n?```$", "", raw.strip())
+        raw = raw.strip()
+
+        # Extract first { ... } block if extra prose is present
+        match = re.search(r"\{.*\}", raw, re.DOTALL)
+        if match:
+            raw = match.group(0)
+
+        try:
+            parsed = json.loads(raw)
+        except json.JSONDecodeError as exc:
+            logger.warning("IdentityAgent: JSON parse failed (%s). Raw: %.200s", exc, raw)
+            raise
+
+        identity_risk = float(parsed.get("identity_risk", 0.0))
+        anomalies     = parsed.get("anomalies", [])
+        confidence    = float(parsed.get("confidence", 1.0))
 
         return {
             "verified":      identity_risk < 40,

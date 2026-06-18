@@ -133,7 +133,7 @@ async def submit_feedback(request: FeedbackRequest):
 
     # ── Week 4: JSONL log ────────────────────────────────────────────────
     _append_feedback_log({
-        "timestamp":          datetime.datetime.now(datetime.timezone.utc).isoformat().replace("+00:00", "Z"),
+        "timestamp":          datetime.datetime.now(datetime.UTC).isoformat().replace("+00:00", "Z"),
         "event":              "general_feedback",
         "analysis_id":        request.analysis_id,
         "action":             request.user_feedback,
@@ -189,7 +189,7 @@ async def submit_override(request: OverrideRequest):
 
     # ── Week 4: JSONL log ────────────────────────────────────────────────
     _append_feedback_log({
-        "timestamp":       datetime.datetime.now(datetime.timezone.utc).isoformat().replace("+00:00", "Z"),
+        "timestamp":       datetime.datetime.now(datetime.UTC).isoformat().replace("+00:00", "Z"),
         "event":           "override",
         "analysis_id":     result.analysis_id,
         "pattern_key":     result.pattern_key,
