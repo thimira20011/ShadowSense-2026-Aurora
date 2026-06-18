@@ -20,13 +20,17 @@ for offline analysis and debugging.
 from __future__ import annotations
 
 import sys
+import asyncio
 import json
 import logging
 import datetime
 from pathlib import Path
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Request
 from pydantic import BaseModel, Field
+from slowapi import Limiter
+from slowapi.util import get_remote_address
+from backend.config import RATE_LIMIT_FEEDBACK
 
 # ---------------------------------------------------------------------------
 # Bootstrap ml-pipeline import path
@@ -46,6 +50,9 @@ except Exception as _import_err:
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/feedback", tags=["feedback"])
+
+# Rate limiter — mirrors the one in analyze.py
+limiter = Limiter(key_func=get_remote_address)
 
 # ---------------------------------------------------------------------------
 # JSONL logging helpers (Week 4)
@@ -121,24 +128,25 @@ class OverrideResponse(BaseModel):
 # ---------------------------------------------------------------------------
 
 @router.post("/", response_model=FeedbackResponse)
-async def submit_feedback(request: FeedbackRequest):
+@limiter.limit(RATE_LIMIT_FEEDBACK)
+async def submit_feedback(request: Request, req: FeedbackRequest):
     """Submit general user feedback (was the analysis accurate?).
 
     Week 4: All submissions are appended to ``logs/feedback.jsonl``.
     """
     logger.info(
         "submit_feedback: analysis_id=%s  was_accurate=%s",
-        request.analysis_id, request.was_accurate,
+        req.analysis_id, req.was_accurate,
     )
 
-    # ── Week 4: JSONL log ────────────────────────────────────────────────
+    # ── Week 4: JSONL log ──────────────────────────────────────────────────────────────────────
     _append_feedback_log({
         "timestamp":          datetime.datetime.now(datetime.UTC).isoformat().replace("+00:00", "Z"),
         "event":              "general_feedback",
-        "analysis_id":        request.analysis_id,
-        "action":             request.user_feedback,
-        "was_accurate":       request.was_accurate,
-        "additional_context": request.additional_context,
+        "analysis_id":        req.analysis_id,
+        "action":             req.user_feedback,
+        "was_accurate":       req.was_accurate,
+        "additional_context": req.additional_context,
     })
 
     # General feedback is logged; override-specific logic uses /override
@@ -149,7 +157,8 @@ async def submit_feedback(request: FeedbackRequest):
 
 
 @router.post("/override", response_model=OverrideResponse)
-async def submit_override(request: OverrideRequest):
+@limiter.limit(RATE_LIMIT_FEEDBACK)
+async def submit_override(http_request: Request, request: OverrideRequest):
     """
     Handle an "Override + Report" action from the ShadowSense extension.
 
@@ -158,6 +167,9 @@ async def submit_override(request: OverrideRequest):
     if ≥ 3 unique users have overridden it (granting a ``+20`` trust-score boost).
 
     Week 4: Every override is also appended to ``logs/feedback.jsonl``.
+
+    Rate limit: RATE_LIMIT_FEEDBACK (default 60/minute per IP).
+    ChromaDB write is offloaded to a thread executor — does not block the event loop.
     """
     if not _FEEDBACK_LOOP_AVAILABLE or process_override is None:
         logger.error("FeedbackLoop unavailable — ml-pipeline not importable.")
@@ -174,13 +186,18 @@ async def submit_override(request: OverrideRequest):
         request.analysis_id, request.user_id, request.trust_score,
     )
 
+    feedback_data = {
+        "analysis_id":  request.analysis_id,
+        "pattern_text": request.pattern_text,
+        "user_id":      request.user_id or "anonymous",
+        "trust_score":  request.trust_score,
+    }
+
     try:
-        result: OverrideResult = process_override({
-            "analysis_id":  request.analysis_id,
-            "pattern_text": request.pattern_text,
-            "user_id":      request.user_id or "anonymous",
-            "trust_score":  request.trust_score,
-        })
+        loop: asyncio.AbstractEventLoop = asyncio.get_event_loop()
+        result: OverrideResult = await loop.run_in_executor(
+            None, process_override, feedback_data
+        )
     except ValueError as ve:
         raise HTTPException(status_code=422, detail=str(ve))
     except Exception as exc:

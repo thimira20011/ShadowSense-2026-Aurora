@@ -171,6 +171,9 @@ class FeedbackLoop:
         self._benign_col: Optional[Any]       = None
         self._embeddings: Optional[Any]       = None
 
+        # Per-pattern locks for thread-safe read-modify-write on override counter
+        self._pattern_locks: dict[str, threading.Lock] = {}
+
         log.info(
             "FeedbackLoop ready. db=%s  threshold=%d  boost=+%d",
             self.db_dir, self.benign_threshold, self.benign_boost,
@@ -570,48 +573,55 @@ class FeedbackLoop:
         The counter is stored in the ``benign_pattern_votes`` collection.
         Existing records are retrieved, count is incremented, and the record
         is upserted (idempotent).
+
+        Thread-safety: a per-pattern lock serialises the read-modify-write so
+        concurrent requests for the same pattern cannot corrupt the count.
         """
-        try:
-            col = self._get_benign_collection()
+        # Acquire a per-pattern lock (created on first use, never released)
+        lock = self._pattern_locks.setdefault(pattern_key, threading.Lock())
+        with lock:
+            try:
+                col = self._get_benign_collection()
 
-            # Check if a record already exists for this pattern
-            existing = col.get(ids=[pattern_key], include=["metadatas", "documents"])
-            existing_ids = existing.get("ids", [])
+                # Check if a record already exists for this pattern
+                existing = col.get(ids=[pattern_key], include=["metadatas", "documents"])
+                existing_ids = existing.get("ids", [])
 
-            if existing_ids:
-                # Increment existing count
-                current_meta = existing["metadatas"][0]
-                current_text = existing["documents"][0]
-                new_count    = int(current_meta.get("override_count", 0)) + 1
-                benign       = current_meta.get("benign", False)
-            else:
-                # First override for this pattern
-                current_text = pattern_text
-                new_count    = 1
-                benign       = False
+                if existing_ids:
+                    # Increment existing count
+                    current_meta = existing["metadatas"][0]
+                    current_text = existing["documents"][0]
+                    new_count    = int(current_meta.get("override_count", 0)) + 1
+                    benign       = current_meta.get("benign", False)
+                else:
+                    # First override for this pattern
+                    current_text = pattern_text
+                    new_count    = 1
+                    benign       = False
 
-            dim = 384
-            placeholder = [0.0] * dim
+                dim = 384
+                placeholder = [0.0] * dim
 
-            col.upsert(
-                ids        = [pattern_key],
-                documents  = [current_text],
-                embeddings = [placeholder],
-                metadatas  = [{
-                    "override_count": new_count,
-                    "benign":         benign,
-                    "last_override":  ts,
-                    "threshold":      self.benign_threshold,
-                    "boost":          self.benign_boost,
-                }],
-            )
-            log.debug(
-                "_increment_override_count: key=%s  new_count=%d", pattern_key, new_count
-            )
-            return new_count
-        except Exception as exc:
-            log.error("_increment_override_count failed: %s", exc)
-            return 0
+                col.upsert(
+                    ids        = [pattern_key],
+                    documents  = [current_text],
+                    embeddings = [placeholder],
+                    metadatas  = [{
+                        "override_count": new_count,
+                        "benign":         benign,
+                        "last_override":  ts,
+                        "threshold":      self.benign_threshold,
+                        "boost":          self.benign_boost,
+                    }],
+                )
+                log.debug(
+                    "_increment_override_count: key=%s  new_count=%d", pattern_key, new_count
+                )
+                return new_count
+            except Exception as exc:
+                log.error("_increment_override_count failed: %s", exc)
+                return 0
+
 
     def _get_current_vote_count(self, pattern_key: str) -> int:
         """Read the override counter without mutating it."""
@@ -650,6 +660,16 @@ def _get_feedback_loop() -> FeedbackLoop:
     if _feedback_loop is None:
         _feedback_loop = FeedbackLoop()
     return _feedback_loop
+
+
+def _reset_feedback_loop() -> None:
+    """Reset the module-level singleton — **for unit tests only**.
+
+    Call this in test setUp / tearDown to ensure each test starts with a
+    fresh FeedbackLoop instance without having to reload the module.
+    """
+    global _feedback_loop
+    _feedback_loop = None
 
 
 def process_override(feedback_data: Dict[str, Any]) -> OverrideResult:

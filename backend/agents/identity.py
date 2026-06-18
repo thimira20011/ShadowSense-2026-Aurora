@@ -20,21 +20,35 @@ import logging
 import threading
 import re
 import requests
+import sys
+from pathlib import Path
 from concurrent.futures import ThreadPoolExecutor, TimeoutError as FuturesTimeoutError
 from typing import Any
 
 from google import genai
 from google.genai import types as genai_types
 
-from backend.config import GEMINI_API_KEYS, OLLAMA_HOST, DEEPSEEK_MODEL
+from backend.config import (
+    GEMINI_API_KEYS, OLLAMA_HOST, DEEPSEEK_MODEL,
+    OLLAMA_IDENTITY_TIMEOUT_S, OLLAMA_IDENTITY_MAX_TOKENS,
+)
 from ._crewai_stub import Agent
+
+_ML_PIPELINE_DIR = Path(__file__).resolve().parent.parent.parent / "ml-pipeline"
+if str(_ML_PIPELINE_DIR) not in sys.path:
+    sys.path.insert(0, str(_ML_PIPELINE_DIR))
+
+try:
+    from ollama_client import OllamaClient
+    _OLLAMA_AVAILABLE = True
+except ImportError:
+    _OLLAMA_AVAILABLE = False
 
 logger = logging.getLogger(__name__)
 
 # ── Model constants ───────────────────────────────────────────────────────────
-_GEMINI_MODEL  = "models/gemini-2.0-flash"
-_OLLAMA_TIMEOUT = 15          # seconds hard-cap for the Ollama tier
-_OLLAMA_MAX_TOKENS = 512      # identity response is tiny; keep inference fast
+GEMINI_MODEL  = "models/gemini-2.0-flash"
+# Ollama timeout/token settings now live in config.py (OLLAMA_IDENTITY_TIMEOUT_S / OLLAMA_IDENTITY_MAX_TOKENS)
 
 # Shared executor for Ollama calls — 1 worker so we don't pile up requests
 # when Gemini quota is chronically exhausted.
@@ -66,6 +80,8 @@ class IdentityAgent:
             allow_delegation=False,
         )
 
+        self.client = OllamaClient(host=OLLAMA_HOST) if _OLLAMA_AVAILABLE else None
+
         self._lock   = threading.Lock()
         self._index  = 0
         self._clients: list[genai.Client] = []
@@ -82,7 +98,7 @@ class IdentityAgent:
             self.is_mock = False
             logger.info(
                 "IdentityAgent initialised with %d Gemini client(s), model: %s",
-                len(self._clients), _GEMINI_MODEL,
+                len(self._clients), GEMINI_MODEL,
             )
         else:
             self.is_mock = True
@@ -132,7 +148,7 @@ class IdentityAgent:
 
         # ── Tier 1: Gemini ────────────────────────────────────────────────────
         if not self.is_mock:
-            result = self._try_gemini(identity_data, start)
+            result = self._try_gemini(identity_data, message_text, start)
             if result is not None:
                 return result
 
@@ -149,9 +165,13 @@ class IdentityAgent:
     # ─────────────────────────────────────────────────────────────────────────
 
     def _try_gemini(
-        self, identity_data: dict[str, Any], start: float
+        self, identity_data: dict[str, Any], message_text: str, start: float
     ) -> dict[str, Any] | None:
-        """Try all Gemini keys in round-robin. Returns None if all are quota-limited."""
+        """Try all Gemini keys in round-robin. Returns None if all are quota-limited.
+
+        Includes message_text in the prompt so Gemini has the same context
+        as the Ollama and rule-based tiers.
+        """
         num_clients = len(self._clients)
         last_exc: Exception | None = None
 
@@ -169,7 +189,7 @@ class IdentityAgent:
             )
 
             try:
-                result = self._gemini_verify(client, identity_data)
+                result = self._gemini_verify(client, identity_data, message_text)
                 result["tier_used"] = "gemini"
                 latency = time.perf_counter() - start
                 logger.info("IdentityAgent[Gemini] latency: %.4fs", latency)
@@ -202,11 +222,11 @@ class IdentityAgent:
         return None
 
     def _gemini_verify(
-        self, client: genai.Client, identity_data: dict[str, Any]
+        self, client: genai.Client, identity_data: dict[str, Any], message_text: str = ""
     ) -> dict[str, Any]:
-        prompt = self._build_prompt(identity_data)
+        prompt = self._build_prompt(identity_data, message_text=message_text)
         response = client.models.generate_content(
-            model=_GEMINI_MODEL,
+            model=GEMINI_MODEL,
             contents=prompt,
             config=genai_types.GenerateContentConfig(
                 temperature=0.0,
@@ -226,37 +246,30 @@ class IdentityAgent:
         message_text: str,
         start: float,
     ) -> dict[str, Any] | None:
-        """Call Ollama in a thread-pool worker with a 15 s timeout.
+        """Call Ollama in a thread-pool worker with a configurable timeout.
 
-        Uses the same deepseek-r1 model that runs the main analysis pipeline,
-        but with a tiny max_tokens cap so it completes quickly and doesn't
-        starve the main call if they happen to be concurrent.
+        Uses the resolved model from OllamaClient, but with a tiny max_tokens cap
+        so it completes quickly and doesn't starve the main call.
         """
-        logger.info("IdentityAgent[Ollama]: attempting identity analysis via %s…", DEEPSEEK_MODEL)
+        if not self.client or not self.client.is_available():
+            logger.warning("IdentityAgent[Ollama]: Ollama not available or not installed locally.")
+            return None
+
+        logger.info("IdentityAgent[Ollama]: attempting identity analysis via %s…", self.client.model)
 
         def _call() -> dict[str, Any]:
             prompt = self._build_prompt(identity_data, message_text=message_text)
-            payload = {
-                "model":  DEEPSEEK_MODEL,
-                "prompt": prompt,
-                "stream": False,
-                "options": {
-                    "temperature": 0.0,
-                    "num_predict": _OLLAMA_MAX_TOKENS,
-                },
-            }
-            resp = requests.post(
-                f"{OLLAMA_HOST}/api/generate",
-                json=payload,
-                timeout=_OLLAMA_TIMEOUT,
+            raw = self.client.generate(
+                prompt=prompt,
+                temperature=0.0,
+                max_tokens=OLLAMA_IDENTITY_MAX_TOKENS,
+                timeout=OLLAMA_IDENTITY_TIMEOUT_S,
             )
-            resp.raise_for_status()
-            raw = resp.json().get("response", "{}").strip()
             return self._parse_llm_response(raw)
 
         future = _ollama_executor.submit(_call)
         try:
-            result = future.result(timeout=_OLLAMA_TIMEOUT)
+            result = future.result(timeout=OLLAMA_IDENTITY_TIMEOUT_S)
             result["tier_used"] = "ollama"
             latency = time.perf_counter() - start
             logger.info("IdentityAgent[Ollama] latency: %.4fs", latency)
@@ -266,7 +279,7 @@ class IdentityAgent:
             future.cancel()
             logger.warning(
                 "IdentityAgent[Ollama]: timed out after %ds. "
-                "Falling through to enriched rule tier.", _OLLAMA_TIMEOUT,
+                "Falling through to enriched rule tier.", OLLAMA_IDENTITY_TIMEOUT_S,
             )
             return None
 

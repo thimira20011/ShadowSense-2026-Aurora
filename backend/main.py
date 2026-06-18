@@ -22,13 +22,19 @@ _project_root = Path(__file__).resolve().parent.parent
 if str(_project_root) not in sys.path:
     sys.path.insert(0, str(_project_root))
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
+from slowapi import Limiter, _rate_limit_exceeded_handler
+from slowapi.util import get_remote_address
+from slowapi.errors import RateLimitExceeded
+from slowapi.middleware import SlowAPIMiddleware
 
 from backend.logging_config import setup_logging
 from backend.config import (
     API_HOST, API_PORT, DEBUG, LOG_LEVEL, LOG_FORMAT,
     validate_env, GROQ_API_KEYS, GEMINI_API_KEYS, OLLAMA_HOST,
+    RATE_LIMIT_ANALYZE, RATE_LIMIT_FEEDBACK,
 )
 from backend.api import analyze, feedback, pre_engage
 
@@ -72,6 +78,22 @@ app = FastAPI(
     version="1.0.0",
     lifespan=lifespan,
 )
+
+# ---------------------------------------------------------------------------
+# Rate limiter
+# ---------------------------------------------------------------------------
+limiter = Limiter(key_func=get_remote_address, default_limits=[])
+app.state.limiter = limiter
+app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
+app.add_middleware(SlowAPIMiddleware)
+
+# Attach the limiter and per-route limits to the sub-routers
+analyze.router.route_class  # no-op reference to ensure module loaded
+feedback.router.route_class
+
+# Store limits in app state so router decorators can reference them
+app.state.rate_limit_analyze  = RATE_LIMIT_ANALYZE
+app.state.rate_limit_feedback = RATE_LIMIT_FEEDBACK
 
 # CORS — allow the Chrome extension (and local dev tools) to call the API
 app.add_middleware(

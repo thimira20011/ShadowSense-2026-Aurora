@@ -30,8 +30,11 @@ DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///shadowsense.db")
 # ---------------------------------------------------------------------------
 # ML Pipeline (Ollama / ChromaDB)
 # ---------------------------------------------------------------------------
-OLLAMA_HOST = os.getenv("OLLAMA_HOST", "http://localhost:11434")
-DEEPSEEK_MODEL = os.getenv("DEEPSEEK_MODEL", "deepseek-r1")
+OLLAMA_HOST  = os.getenv("OLLAMA_HOST", "http://localhost:11434")
+# Primary Ollama model — override with OLLAMA_MODEL env var.
+# Default changed from deepseek-r1 to llama3.2 (user's installed model).
+OLLAMA_MODEL = os.getenv("OLLAMA_MODEL", os.getenv("DEEPSEEK_MODEL", "llama3.2"))
+DEEPSEEK_MODEL = OLLAMA_MODEL  # backward-compat alias used in identity.py / payload.py
 CHROMADB_PATH = os.getenv("CHROMADB_PATH", "./chromadb")
 
 # ---------------------------------------------------------------------------
@@ -77,6 +80,30 @@ EXTENSION_ID = os.getenv("EXTENSION_ID", "shadowsense-aurora")
 LOG_LEVEL = os.getenv("LOG_LEVEL", "INFO")
 # Set LOG_FORMAT=json for structured JSON logs (production / log aggregators)
 LOG_FORMAT = os.getenv("LOG_FORMAT", "console")
+
+# ---------------------------------------------------------------------------
+# Agent tuning constants
+# ---------------------------------------------------------------------------
+# ShieldAgent
+SHIELD_AGENT_TIMEOUT_S: float = float(os.getenv("SHIELD_AGENT_TIMEOUT_S", "22.0"))
+SHIELD_EXECUTOR_WORKERS: int = int(os.getenv("SHIELD_EXECUTOR_WORKERS", "4"))
+
+# IdentityAgent
+OLLAMA_IDENTITY_TIMEOUT_S: int = int(os.getenv("OLLAMA_IDENTITY_TIMEOUT_S", "15"))
+OLLAMA_IDENTITY_MAX_TOKENS: int = int(os.getenv("OLLAMA_IDENTITY_MAX_TOKENS", "512"))
+
+# ChromaDB penalty (applied when similarity >= threshold)
+CHROMADB_PENALTY_THRESHOLD: float = float(os.getenv("CHROMADB_PENALTY_THRESHOLD", "0.5"))
+CHROMADB_PENALTY_SCALE: float = float(os.getenv("CHROMADB_PENALTY_SCALE", "25.0"))
+
+# LinguisticAgent
+LINGUISTIC_MAX_TEXT_CHARS: int = int(os.getenv("LINGUISTIC_MAX_TEXT_CHARS", "4000"))
+
+# ---------------------------------------------------------------------------
+# Rate limiting
+# ---------------------------------------------------------------------------
+RATE_LIMIT_ANALYZE: str  = os.getenv("RATE_LIMIT_ANALYZE", "30/minute")
+RATE_LIMIT_FEEDBACK: str = os.getenv("RATE_LIMIT_FEEDBACK", "60/minute")
 
 
 # ---------------------------------------------------------------------------
