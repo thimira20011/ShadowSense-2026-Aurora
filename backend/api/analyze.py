@@ -1,12 +1,19 @@
 """Endpoint for scam analysis requests."""
+import asyncio
 import uuid
 from typing import Any
-from fastapi import APIRouter
+from fastapi import APIRouter, Request
 from pydantic import BaseModel, Field
+from slowapi import Limiter
+from slowapi.util import get_remote_address
 from backend.agents.shield import ShieldAgent
 from backend.models import ChatMessage, DefenseNarrative, TrustScore
+from backend.config import RATE_LIMIT_ANALYZE
 
 router = APIRouter(prefix="/api/analyze", tags=["analysis"])
+
+# Module-level limiter — shares the Limiter instance from app.state
+limiter = Limiter(key_func=get_remote_address)
 
 # Single shared ShieldAgent instance (agents are stateless per-request)
 shield = ShieldAgent()
@@ -34,7 +41,8 @@ class AnalysisResponse(BaseModel):
 
 
 @router.post("/", response_model=AnalysisResponse)
-async def analyze_message(message: ChatMessage) -> AnalysisResponse:
+@limiter.limit(RATE_LIMIT_ANALYZE)
+async def analyze_message(request: Request, message: ChatMessage) -> AnalysisResponse:
     """Analyze a chat message for scam indicators using the multi-agent Shield system.
 
     The Shield coordinates:
@@ -44,6 +52,10 @@ async def analyze_message(message: ChatMessage) -> AnalysisResponse:
 
     Returns analysis_id (UUID4) so the extension can attribute Override+Report
     feedback events to a specific analysis via POST /api/feedback/override.
+
+    Rate limit: RATE_LIMIT_ANALYZE (default 30/minute per IP).
+    The shield.defend() call is run in a thread executor so it does not
+    block the async event loop during long LLM inference.
     """
     context = {
         "text":      message.text,
@@ -52,7 +64,8 @@ async def analyze_message(message: ChatMessage) -> AnalysisResponse:
         "context":   message.context or {},
     }
 
-    result = shield.defend(context)
+    loop   = asyncio.get_event_loop()
+    result = await loop.run_in_executor(None, shield.defend, context)
 
     details = result.get("agent_details")
     agent_details_obj = AgentDetails(**details) if details else None

@@ -9,6 +9,12 @@ from ._crewai_stub import Agent  # TODO: replace with `from crewai import Agent`
 from .linguistic import LinguisticAgent
 from .identity import IdentityAgent
 from .payload import PayloadAgent
+from backend.config import (
+    SHIELD_AGENT_TIMEOUT_S,
+    SHIELD_EXECUTOR_WORKERS,
+    CHROMADB_PENALTY_THRESHOLD,
+    CHROMADB_PENALTY_SCALE,
+)
 
 # ---------------------------------------------------------------------------
 # ChromaDB / semantic similarity (ml-pipeline) -- optional, graceful fallback
@@ -44,6 +50,13 @@ _WEIGHTS = {
     "identity":   0.35,  # Secondary — profile metadata
     "payload":    0.20,  # Tertiary — stub in Week 2, DeepSeek in Week 3
 }
+
+# Module-level shared executor — avoids creating a new thread pool per request.
+# max_workers=SHIELD_EXECUTOR_WORKERS (default 4): one per sub-agent + headroom.
+_SHIELD_EXECUTOR = concurrent.futures.ThreadPoolExecutor(
+    max_workers=SHIELD_EXECUTOR_WORKERS,
+    thread_name_prefix="shield",
+)
 
 
 class ShieldAgent:
@@ -130,37 +143,35 @@ class ShieldAgent:
 
         payload_file  = extra_ctx.get("filename", "")
 
-        # ── 1. Concurrent Execution (Max 5s) ────────────────────────────
-        executor = concurrent.futures.ThreadPoolExecutor(max_workers=3)
-        future_linguistic = executor.submit(self.linguistic.analyze, text)
-        future_identity = executor.submit(self.identity.verify, profile_meta)
-        future_payload = executor.submit(self.payload.analyze, payload_file)
+        # ── 1. Concurrent Execution (SHIELD_AGENT_TIMEOUT_S = 22s default) ─
+        # Uses the module-level singleton executor — no thread pool created per request.
+        future_linguistic = _SHIELD_EXECUTOR.submit(self.linguistic.analyze, text)
+        future_identity   = _SHIELD_EXECUTOR.submit(self.identity.verify, profile_meta, text)
+        future_payload    = _SHIELD_EXECUTOR.submit(self.payload.analyze, payload_file)
 
-        done, not_done = concurrent.futures.wait(
+        done, _not_done = concurrent.futures.wait(
             [future_linguistic, future_identity, future_payload],
-            timeout=5.0,
-            return_when=concurrent.futures.ALL_COMPLETED
+            timeout=SHIELD_AGENT_TIMEOUT_S,
+            return_when=concurrent.futures.ALL_COMPLETED,
         )
 
         try:
             linguistic_res = future_linguistic.result() if future_linguistic in done else {"urgency_score": 0.0, "red_flags": ["Analysis timeout"], "confidence": 0.0}
         except Exception as e:
-            logger.error(f"Linguistic failed: {e}")
+            logger.error("Linguistic failed: %s", e)
             linguistic_res = {"urgency_score": 0.0, "red_flags": ["Analysis failed"], "confidence": 0.0}
 
         try:
             identity_res = future_identity.result() if future_identity in done else {"identity_risk": 0.0, "anomalies": ["Analysis timeout"], "confidence": 0.0}
         except Exception as e:
-            logger.error(f"Identity failed: {e}")
+            logger.error("Identity failed: %s", e)
             identity_res = {"identity_risk": 0.0, "anomalies": ["Analysis failed"], "confidence": 0.0}
 
         try:
             payload_res = future_payload.result() if future_payload in done else {"payload_risk": 0.0, "threats": ["Analysis timeout"], "confidence": 0.0}
         except Exception as e:
-            logger.error(f"Payload failed: {e}")
+            logger.error("Payload failed: %s", e)
             payload_res = {"payload_risk": 0.0, "threats": ["Analysis failed"], "confidence": 0.0}
-
-        executor.shutdown(wait=False)
 
         linguistic_urgency = float(linguistic_res.get("urgency_score", 0.0))
         identity_risk = float(identity_res.get("identity_risk", 0.0))
@@ -180,8 +191,10 @@ class ShieldAgent:
                         similar_patterns[0]["type"],
                     )
                     # Week 3 task: Penalize trust score based on similarity hits
-                    if top_sim >= 0.5:
-                        chromadb_penalty = (top_sim - 0.4) * 30.0 # e.g. 0.8 -> 0.4 * 30 = 12 penalty points
+                    if top_sim >= CHROMADB_PENALTY_THRESHOLD:
+                        # Penalty is 0 at threshold and scales linearly above it.
+                        # e.g. sim=0.8 → (0.8 - 0.5) * 25 = 7.5 penalty points
+                        chromadb_penalty = (top_sim - CHROMADB_PENALTY_THRESHOLD) * CHROMADB_PENALTY_SCALE
             except Exception as exc:
                 logger.warning("ChromaDB query failed (non-fatal): %s", exc)
 
@@ -205,11 +218,19 @@ class ShieldAgent:
 
         score = max(0, min(100, raw_score + benign_boost))
 
+        linguistic_tier = linguistic_res.get("tier_used", "unknown")
+        identity_tier   = identity_res.get("tier_used", "unknown")
+        payload_tier    = payload_res.get("tier_used", "unknown")
+
         logger.info(
-            "Shield Trust Score: %d  (raw=%d, benign_boost=%d, linguistic=%.1f, "
-            "identity=%.1f, payload=%.1f, chromadb_penalty=%.1f, weighted_risk=%.2f, chromadb_patterns=%d)",
+            "Shield Trust Score: %d  (raw=%d, benign_boost=%d, linguistic=%.1f[%s], "
+            "identity=%.1f[%s], payload=%.1f[%s], chromadb_penalty=%.1f, "
+            "weighted_risk=%.2f, chromadb_patterns=%d)",
             score, raw_score, benign_boost,
-            linguistic_urgency, identity_risk, payload_risk, chromadb_penalty, weighted_risk,
+            linguistic_urgency, linguistic_tier,
+            identity_risk, identity_tier,
+            payload_risk, payload_tier,
+            chromadb_penalty, weighted_risk,
             len(similar_patterns),
         )
 
@@ -238,6 +259,12 @@ class ShieldAgent:
                 "identity":          identity_res,
                 "payload":           payload_res,
                 "similar_patterns":  similar_patterns,  # ChromaDB top-k
+                # Tier provenance -- which model actually produced each sub-score
+                "tiers_used": {
+                    "linguistic": linguistic_tier,
+                    "identity":   identity_tier,
+                    "payload":    payload_tier,
+                },
             },
         }
 
