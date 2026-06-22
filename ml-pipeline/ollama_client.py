@@ -15,7 +15,7 @@ class OllamaClient:
 
     def __init__(self, host: str = "http://localhost:11434"):
         self.host = host
-        self.configured_model = os.getenv("OLLAMA_MODEL") or os.getenv("DEEPSEEK_MODEL") or "llama3.2"
+        self.configured_model = os.getenv("OLLAMA_MODEL") or os.getenv("DEEPSEEK_MODEL") or "deepseek-r1"
         self.model = self.configured_model
         self._resolve_model()
 
@@ -46,7 +46,7 @@ class OllamaClient:
                         return
 
                 # Common fallbacks in order of preference
-                fallbacks = ["llama3.2", "deepseek-r1", "llama3.3", "llama"]
+                fallbacks = ["deepseek-r1", "deepseek"]
                 for f in fallbacks:
                     for m in models:
                         base_m = m.split(":")[0]
@@ -54,8 +54,8 @@ class OllamaClient:
                             self.model = m
                             return
 
-                # If no matches, fallback to first available
-                self.model = models[0]
+                # If no matches, fallback to configured_model
+                self.model = self.configured_model
         except Exception:
             pass
 

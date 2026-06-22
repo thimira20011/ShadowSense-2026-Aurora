@@ -68,9 +68,9 @@ class ShieldAgent:
                ─► PayloadAgent     (stub; DeepSeek-R1 / Ollama in Week 3)
 
     Weighted Trust Score formula:
-        weighted_risk = 0.4 * linguistic_urgency_score
-                      + 0.3 * identity_risk
-                      + 0.3 * payload_risk
+        weighted_risk = 0.45 * linguistic_urgency_score
+                      + 0.35 * identity_risk
+                      + 0.20 * payload_risk
         trust_score   = clamp(100 - weighted_risk, 0, 100)
     """
 
@@ -142,6 +142,15 @@ class ShieldAgent:
             profile_meta.setdefault("username", sender)
 
         payload_file  = extra_ctx.get("filename", "")
+        if not payload_file and text:
+            import re
+            file_match = re.search(r'\b[\w\-]+\.(?:exe|scr|bat|zip|rar|lnk|cmd|js|vbs|wsf|dmg|app|ipa|pdf|docx|xlsx)\b', text, re.IGNORECASE)
+            if file_match:
+                payload_file = file_match.group(0)
+            else:
+                url_match = re.search(r'https?://[^\s/$.?#].[^\s]*', text, re.IGNORECASE)
+                if url_match:
+                    payload_file = url_match.group(0)
 
         # ── 1. Concurrent Execution (SHIELD_AGENT_TIMEOUT_S = 22s default) ─
         # Uses the module-level singleton executor — no thread pool created per request.

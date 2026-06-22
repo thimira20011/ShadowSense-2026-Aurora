@@ -34,7 +34,7 @@ from backend.logging_config import setup_logging
 from backend.config import (
     API_HOST, API_PORT, DEBUG, LOG_LEVEL, LOG_FORMAT,
     validate_env, GROQ_API_KEYS, GEMINI_API_KEYS, OLLAMA_HOST,
-    RATE_LIMIT_ANALYZE, RATE_LIMIT_FEEDBACK,
+    RATE_LIMIT_ANALYZE, RATE_LIMIT_FEEDBACK, CHROMADB_PATH,
 )
 from backend.api import analyze, feedback, pre_engage
 
@@ -58,6 +58,13 @@ async def lifespan(app: FastAPI):  # noqa: ARG001
     # 2. Validate required environment variables — exits if any are missing
     validate_env()
     logger.info("Environment validation passed.")
+
+    # 3. Ensure ChromaDB directory exists
+    try:
+        Path(CHROMADB_PATH).mkdir(parents=True, exist_ok=True)
+        logger.info("ChromaDB directory verified at: %s", CHROMADB_PATH)
+    except Exception as exc:
+        logger.warning("Could not create ChromaDB directory: %s", exc)
 
     yield  # Application is now running
 
@@ -98,7 +105,12 @@ app.state.rate_limit_feedback = RATE_LIMIT_FEEDBACK
 # CORS — allow the Chrome extension (and local dev tools) to call the API
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=[
+        "http://localhost:8000",
+        "http://127.0.0.1:8000",
+        "http://localhost:5173",  # React / Vite local dev port
+    ],
+    allow_origin_regex="chrome-extension://.*",
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],

@@ -28,6 +28,7 @@ class AgentDetails(BaseModel):
         default_factory=list,
         description="Top-k ChromaDB semantic matches (M1 Week-2 checkpoint)",
     )
+    tiers_used:       dict[str, str] = Field(default_factory=dict, description="Tier provenance for each sub-score")
 
 
 class AnalysisResponse(BaseModel):
@@ -64,8 +65,7 @@ async def analyze_message(request: Request, message: ChatMessage) -> AnalysisRes
         "context":   message.context or {},
     }
 
-    loop   = asyncio.get_event_loop()
-    result = await loop.run_in_executor(None, shield.defend, context)
+    result = await asyncio.to_thread(shield.defend, context)
 
     details = result.get("agent_details")
     agent_details_obj = AgentDetails(**details) if details else None

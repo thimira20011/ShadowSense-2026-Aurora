@@ -32,8 +32,8 @@ DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///shadowsense.db")
 # ---------------------------------------------------------------------------
 OLLAMA_HOST  = os.getenv("OLLAMA_HOST", "http://localhost:11434")
 # Primary Ollama model — override with OLLAMA_MODEL env var.
-# Default changed from deepseek-r1 to llama3.2 (user's installed model).
-OLLAMA_MODEL = os.getenv("OLLAMA_MODEL", os.getenv("DEEPSEEK_MODEL", "llama3.2"))
+# Default set to deepseek-r1 (restricted to deepseek models).
+OLLAMA_MODEL = os.getenv("OLLAMA_MODEL", os.getenv("DEEPSEEK_MODEL", "deepseek-r1"))
 DEEPSEEK_MODEL = OLLAMA_MODEL  # backward-compat alias used in identity.py / payload.py
 CHROMADB_PATH = os.getenv("CHROMADB_PATH", "./chromadb")
 

@@ -23,6 +23,7 @@ Ollama setup (one-time)
 import sys
 import json
 import logging
+import re
 from pathlib import Path
 from typing import Any
 
@@ -134,6 +135,9 @@ class PayloadAgent:
                 system_prompt=system_prompt,
                 temperature=0.0,
             )
+
+            # Strip <think>...</think> blocks from DeepSeek-R1 responses
+            response_text = re.sub(r"<think>.*?</think>", "", response_text, flags=re.DOTALL).strip()
 
             # Strip markdown fences if model returns them
             response_text = response_text.strip()

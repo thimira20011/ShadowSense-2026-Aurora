@@ -457,6 +457,9 @@ class IdentityAgent:
 
     def _parse_llm_response(self, raw: str) -> dict[str, Any]:
         """Robustly extract JSON from an LLM response, stripping markdown fences."""
+        # Strip <think>...</think> blocks from DeepSeek-R1 responses
+        raw = re.sub(r"<think>.*?</think>", "", raw, flags=re.DOTALL).strip()
+
         # Strip markdown fences (```json ... ```)
         if raw.startswith("```"):
             raw = re.sub(r"^```[a-z]*\n?", "", raw, flags=re.MULTILINE)
