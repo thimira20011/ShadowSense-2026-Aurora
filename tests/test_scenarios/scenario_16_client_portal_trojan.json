@@ -1,23 +1,28 @@
-{
-  "scenario_id": "malware_016",
-  "name": "Trojan Disguised as Client Portal Viewer",
-  "description": "Scammer delivers a malicious executable disguised as a required viewer for accessing a fake encrypted client portal",
-  "file_details": {
-    "filename": "portal-client-secure.exe",
-    "size_mb": 32,
-    "type": "executable",
-    "suspicious_indicators": [
-      "Unsigned executable from unknown publisher",
-      "Mimics legitimate software name",
-      "Accompanied by password-protected PDF for social engineering",
-      "Requests administrator privileges on launch"
-    ]
-  },
-  "expected_threat_level": "critical",
-  "red_flags": [
-    "Executable disguised as document viewer",
-    "Password-protected PDF social engineering",
-    "Fake encrypted client portal pretext",
-    "Remote access trojan delivery vector"
-  ]
+﻿{
+    "scenario_id":  "malware_016",
+    "name":  "Trojan Disguised as Client Portal Viewer",
+    "description":  "Scammer delivers a malicious executable disguised as a required viewer for accessing a fake encrypted client portal",
+    "file_details":  {
+                         "filename":  "portal-client-secure.exe",
+                         "size_mb":  32,
+                         "type":  "executable",
+                         "suspicious_indicators":  [
+                                                       "Unsigned executable from unknown publisher",
+                                                       "Mimics legitimate software name",
+                                                       "Accompanied by password-protected PDF for social engineering",
+                                                       "Requests administrator privileges on launch"
+                                                   ]
+                     },
+    "expected_threat_level":  "critical",
+    "red_flags":  [
+                      "Executable disguised as document viewer",
+                      "Password-protected PDF social engineering",
+                      "Fake encrypted client portal pretext",
+                      "Remote access trojan delivery vector"
+                  ],
+    "expected_trust_score_range":  {
+                                       "min":  0,
+                                       "max":  39
+                                   },
+    "expected_intervention":  "block"
 }

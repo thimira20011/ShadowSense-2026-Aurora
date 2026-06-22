@@ -1,0 +1,23 @@
+{
+  "scenario_id": "edge_case_027",
+  "name": "Long Unicode Mixed-Language Stress Test",
+  "description": "An extremely long message mixing English, emojis, Arabic, Chinese characters, and both scam and benign phrases interleaved — tests encoding stability and crash resistance",
+  "conversation": [
+    {
+      "speaker": "buyer",
+      "message": "Hello 👋 مرحبا 你好 Bonjour! I am a professional client 🎯 looking for a talented developer. My company — Nexus Global LLC™ — is hiring for a VERY URGENT project 🚨🚨🚨. We need: (1) A full-stack web app 💻 (2) iOS + Android apps 📱 (3) AI integration 🤖 Budget: $50,000 USD for the right candidate!! No experience needed — we train you! Just send your: full name, address, bank account number, routing number, and social security number 🔐 to verify@nexus-global-secure-pay.xyz IMMEDIATELY ⏰⏰⏰ or the offer EXPIRES in 30 minutes ⚡. Also please move to Telegram: @nexus_recruiter_official for faster communication. 감사합니다 شكراً Merci Gracias Danke 谢谢 🙏 P.S. We also need you to create an Upwork account using your real ID for our team. You will earn $10,000/week guaranteed 💰💵💴💶. Act NOW before someone else takes this offer!!! 🏃‍♂️💨 Click: http://bit.ly/nexus-urgent-hire-form 🔗 (Warning: link expires in 29 minutes) No scam — 100% legit ✅✅✅ Trust us 🤝. Payment via Bitcoin 🪙 or Amazon gift cards 🎁 only. NDA required — discuss only on WhatsApp +1-555-0199. This is your LAST CHANCE 🎰."
+    }
+  ],
+  "expected_threat_level": "critical",
+  "expected_trust_score_range": { "min": 0, "max": 100 },
+  "expected_intervention": "any",
+  "red_flags": [
+    "Unicode and multi-language mixed encoding",
+    "Extremely long single message",
+    "Multiple scam signals combined: credential harvesting, off-platform luring, gift card payment, fake job",
+    "Emoji-heavy obfuscation tactics",
+    "Multiple urgent CTAs and countdown pressure",
+    "Typosquatted domain and suspicious shortened URL"
+  ],
+  "test_purpose": "Stability and crash-resistance — verifies no 500 errors, no encoding failures, and graceful handling of extreme input length and Unicode"
+}

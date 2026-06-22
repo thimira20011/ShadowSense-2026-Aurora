@@ -43,6 +43,30 @@
   /* Fiverr Green */
   --color-fiverr: #1dbf73;
 
+  /* Rich Gradients (Light) */
+  --grad-risk: linear-gradient(135deg, #fff5f5 0%, #fee2e2 100%);
+  --grad-warn: linear-gradient(135deg, #fffbeb 0%, #fef3c7 100%);
+  --grad-clear: linear-gradient(135deg, #ecfdf5 0%, #d1fae5 100%);
+  --grad-accent: linear-gradient(135deg, #eeedfe 0%, #e0e0ff 100%);
+
+  /* Glowing shadows */
+  --glow-risk: 0 8px 32px rgba(226, 75, 74, 0.15), 0 2px 8px rgba(226, 75, 74, 0.08);
+  --glow-warn: 0 8px 32px rgba(239, 159, 39, 0.15), 0 2px 8px rgba(239, 159, 39, 0.08);
+  --glow-clear: 0 8px 32px rgba(29, 158, 117, 0.15), 0 2px 8px rgba(29, 158, 117, 0.08);
+  --glow-accent: 0 8px 32px rgba(123, 97, 255, 0.15), 0 2px 8px rgba(123, 97, 255, 0.08);
+
+  /* Glassmorphism */
+  --glass-bg: rgba(255, 255, 255, 0.7);
+  --glass-border: rgba(228, 228, 231, 0.6);
+  --glass-blur: blur(12px);
+
+  /* Gauge */
+  --gauge-track-color: #e4e4e7;
+  --gauge-shadow-risk: rgba(226, 75, 74, 0.35);
+  --gauge-shadow-warn: rgba(239, 159, 39, 0.35);
+  --gauge-shadow-clear: rgba(29, 158, 117, 0.35);
+  --gauge-shadow-accent: rgba(123, 97, 255, 0.35);
+
   /* Radii */
   --border-radius-sm: 6px;
   --border-radius-md: 10px;
@@ -52,6 +76,100 @@
   --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
   --shadow-md: 0 4px 12px -2px rgba(9, 9, 11, 0.04), 0 2px 6px -1px rgba(9, 9, 11, 0.02);
   --shadow-lg: 0 10px 25px -5px rgba(9, 9, 11, 0.08), 0 8px 10px -6px rgba(9, 9, 11, 0.08);
+
+  /* Animation timing tokens */
+  --anim-ease-spring: cubic-bezier(0.34, 1.4, 0.64, 1);
+  --anim-ease-out: cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* ─── Dark Mode ──────────────────────────────────────────────────────────── */
+@media (prefers-color-scheme: dark) {
+  :root {
+    --color-bg-base: #18181b;
+    --color-bg-surface: #27272a;
+    --color-border-primary: #3f3f46;
+    --color-border-secondary: #2c2c30;
+    --color-text-primary: #fafafa;
+    --color-text-secondary: #a1a1aa;
+    --color-text-tertiary: #71717a;
+
+    /* Risk State */
+    --color-risk-bg: #2d1515;
+    --color-risk-border: #e24b4a40;
+    --color-risk-text: #fca5a5;
+    --color-risk-primary: #ef4444;
+
+    /* Advisory State */
+    --color-warn-bg: #2d1f08;
+    --color-warn-border: #ef9f2740;
+    --color-warn-text: #fcd34d;
+    --color-warn-primary: #f59e0b;
+
+    /* Clear State */
+    --color-clear-bg: #0d2e22;
+    --color-clear-border: #1d9e7540;
+    --color-clear-text: #6ee7b7;
+    --color-clear-primary: #10b981;
+
+    /* Accent */
+    --color-accent: #a78bfa;
+    --color-accent-light: #a78bfa;
+    --color-accent-bg: #1e1a3a;
+    --color-accent-text: #c4b5fd;
+
+    /* Fiverr Green adjusted */
+    --color-fiverr: #22c55e;
+
+    /* Rich Gradients (Dark) */
+    --grad-risk: linear-gradient(135deg, #2d1515 0%, #1c0b0b 100%);
+    --grad-warn: linear-gradient(135deg, #2d1f08 0%, #1e1302 100%);
+    --grad-clear: linear-gradient(135deg, #0d2e22 0%, #081e16 100%);
+    --grad-accent: linear-gradient(135deg, #1e1a3a 0%, #121024 100%);
+
+    /* Glassmorphism (Dark) */
+    --glass-bg: rgba(39, 39, 42, 0.75);
+    --glass-border: rgba(63, 63, 70, 0.55);
+
+    /* Gauge track */
+    --gauge-track-color: #3f3f46;
+  }
+}
+
+/* Fiverr explicit dark class support (manual theme toggle) */
+html[data-theme="dark"],
+body.dark-mode,
+body[class*="dark"] {
+  --color-bg-base: #18181b;
+  --color-bg-surface: #27272a;
+  --color-border-primary: #3f3f46;
+  --color-border-secondary: #2c2c30;
+  --color-text-primary: #fafafa;
+  --color-text-secondary: #a1a1aa;
+  --color-text-tertiary: #71717a;
+  --color-risk-bg: #2d1515;
+  --color-risk-border: #e24b4a40;
+  --color-risk-text: #fca5a5;
+  --color-risk-primary: #ef4444;
+  --color-warn-bg: #2d1f08;
+  --color-warn-border: #ef9f2740;
+  --color-warn-text: #fcd34d;
+  --color-warn-primary: #f59e0b;
+  --color-clear-bg: #0d2e22;
+  --color-clear-border: #1d9e7540;
+  --color-clear-text: #6ee7b7;
+  --color-clear-primary: #10b981;
+  --color-accent: #a78bfa;
+  --color-accent-light: #a78bfa;
+  --color-accent-bg: #1e1a3a;
+  --color-accent-text: #c4b5fd;
+  --color-fiverr: #22c55e;
+  --grad-risk: linear-gradient(135deg, #2d1515 0%, #1c0b0b 100%);
+  --grad-warn: linear-gradient(135deg, #2d1f08 0%, #1e1302 100%);
+  --grad-clear: linear-gradient(135deg, #0d2e22 0%, #081e16 100%);
+  --grad-accent: linear-gradient(135deg, #1e1a3a 0%, #121024 100%);
+  --glass-bg: rgba(39, 39, 42, 0.75);
+  --glass-border: rgba(63, 63, 70, 0.55);
+  --gauge-track-color: #3f3f46;
 }
 
 /* Reset */
@@ -147,6 +265,20 @@ body {
   100% { opacity: 0.95; }
 }
 
+/* Gauge needle ease-in on mount */
+@keyframes gaugeNeedleEase {
+  from { stroke-dashoffset: var(--gauge-circumference, 150.8); }
+  to   { stroke-dashoffset: var(--gauge-target-offset, 0); }
+}
+
+/* Copied toast flash */
+@keyframes copiedFlash {
+  0%   { opacity: 0; transform: translateY(4px) scale(0.92); }
+  20%  { opacity: 1; transform: translateY(0)   scale(1);    }
+  75%  { opacity: 1; }
+  100% { opacity: 0; transform: translateY(-4px); }
+}
+
 .pulse-glow-loading {
   animation: pulseGlow 1.2s infinite ease-in-out;
 }
@@ -167,4 +299,15 @@ body {
 }
 .skeleton-line.short {
   width: 65%;
+}
+
+/* === Reduced-motion overrides === */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
 }

@@ -22,6 +22,17 @@ export interface DefenseReason {
   description: string;
 }
 
+export interface StoredResult {
+  analysis_id: string;
+  trust_score: number;
+  level: string;
+  reasons: string[];
+  suggested_responses: string[];
+  timestamp: number;
+  message_id: string;
+  message_text: string;
+}
+
 export interface SimulationState {
   score: number;
   level: ThreatLevel;
@@ -29,10 +40,15 @@ export interface SimulationState {
   reasons: DefenseReason[];
   suggestedResponse: string;
   isStreaming: boolean;
+  suggestedTemplates: string[];
 }
 
 export function getThreatLevel(score: number): ThreatLevel {
-  if (score <= 39) return 'high-risk';
+  // Week 4 tuned thresholds — synced with backend ShieldAgent._classify()
+  // HIGH_RISK  0–29  (was 0–39)
+  // ADVISORY  30–69  (wider advisory zone)
+  // CLEAR     70–100
+  if (score <= 29) return 'high-risk';
   if (score <= 69) return 'advisory';
   return 'clear';
 }
@@ -110,13 +126,36 @@ export function getAgentsForLevel(level: ThreatLevel): AgentResult[] {
   }
 }
 
-export function getSuggestedResponse(level: ThreatLevel): string {
+export function getSuggestedResponse(level: ThreatLevel, platform: "fiverr" | "upwork" = "fiverr"): string {
+  const name = platform === "upwork" ? "Upwork" : "Fiverr";
   switch (level) {
     case 'high-risk':
       return '"Thank you for reaching out. Please share all project files through the platform\'s official attachment system. I do not accept files via third-party download links."';
     case 'advisory':
-      return '"I prefer keeping all messages inside Fiverr for my safety. What details would you like to discuss here?"';
+      return `"I prefer keeping all messages inside ${name} for my safety. What details would you like to discuss here?"`;
     case 'clear':
       return '"Thank you. I have received the project files and will start working as agreed."';
+  }
+}
+
+/**
+ * Returns 3 pre-written safe response templates for high-risk conversations.
+ * Designed to be shown as click-to-copy chips below the chat input.
+ */
+export function getSuggestedTemplates(level: ThreatLevel, platform: "fiverr" | "upwork" = "fiverr"): string[] {
+  const name = platform === "upwork" ? "Upwork" : "Fiverr";
+  switch (level) {
+    case 'high-risk':
+      return [
+        `Thanks, but I need to verify this request with ${name} support first.`,
+        `I'm only able to accept files through the official ${name} platform. Please use the attachment feature here.`,
+        `I prefer to keep all communication within ${name} to protect both of us. Let's continue here.`,
+      ];
+    case 'advisory':
+      return [
+        `I prefer keeping all messages inside ${name} for my safety. What details would you like to discuss here?`,
+      ];
+    case 'clear':
+      return [];
   }
 }

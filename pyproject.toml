@@ -1,0 +1,14 @@
+[tool.ruff]
+line-length = 120
+target-version = "py312"
+
+[tool.ruff.lint]
+select = ["E", "W", "F", "B", "UP"]
+ignore = [
+    "E501",   # Line too long – handled by formatter, not enforced as error
+    "B007",   # Loop variable not used in loop body (false positives in agents)
+]
+
+[tool.ruff.lint.per-file-ignores]
+"backend/agents/_crewai_stub.py" = ["ALL"]
+"tests/*" = ["B", "F811"]
