@@ -53,8 +53,10 @@ chromadb/
 htmlcov/
 .coverage
 
-## Logs
 logs/
 *.log
 *.jsonl
+
+## Infisical
+.infisical.json
 

@@ -78,8 +78,6 @@ const CHAT_CONTAINER_SELECTORS = [
   "main [class*='conversation']",
   "main [class*='messages']",
   "main [class*='chat']",
-  // Fallback: the <main> landmark itself so MutationObserver still fires
-  "main",
 ] as const;
 
 /** Individual message bubble / row */
@@ -175,6 +173,10 @@ function fingerprint(sender: string, text: string, timestamp: string): string {
     h = (h * 0x01000193) >>> 0;
   }
   return h.toString(16);
+}
+
+function isContextValid(): boolean {
+  return typeof chrome !== "undefined" && !!chrome.runtime && !!chrome.runtime.id;
 }
 
 /** Extract a human-readable timestamp string from a DOM element */
@@ -344,6 +346,7 @@ class FiverrChatObserver {
   // ── Lifecycle ────────────────────────────────────────────────────────────
 
   async init(): Promise<void> {
+    if (!isContextValid()) return;
     this.stopped = false;
 
     // Fix A: Always disconnect the stale observer before re-attaching.
@@ -380,6 +383,10 @@ class FiverrChatObserver {
     // messages (e.g. virtual-scroll, lazy-loaded bubbles).
     if (this.intervalTimer !== null) clearInterval(this.intervalTimer);
     this.intervalTimer = setInterval(() => {
+      if (!isContextValid()) {
+        this.stop();
+        return;
+      }
       if (!this.stopped) {
         void this.scanAll().catch((err) =>
           console.error('[ShadowSense] Interval scan error:', err)
@@ -393,7 +400,7 @@ class FiverrChatObserver {
    * Retries every second for up to 30 s to handle SPA lazy-loading.
    */
   private attach(attempts = 0): void {
-    if (this.stopped) return;
+    if (!isContextValid() || this.stopped) return;
 
     const container = queryFirst(document, CHAT_CONTAINER_SELECTORS);
 
@@ -403,7 +410,13 @@ class FiverrChatObserver {
         this.attachRetryTimer = null;
       }
       this.chatContainer = container;
-      this.observer = new MutationObserver(() => this.scheduleExtraction());
+      this.observer = new MutationObserver(() => {
+        if (!isContextValid()) {
+          this.stop();
+          return;
+        }
+        this.scheduleExtraction();
+      });
       this.observer.observe(container, {
         childList: true,
         subtree: true,
@@ -414,6 +427,10 @@ class FiverrChatObserver {
         "[ShadowSense] MutationObserver attached to chat container:",
         container.tagName,
         container.className.slice(0, 60)
+      );
+      // Scan the messages in the newly found container immediately
+      void this.scanAll().catch((err) =>
+        console.error('[ShadowSense] Post-attach scan error:', err)
       );
     } else if (attempts < 30) {
       // Retry – the SPA may not have rendered the inbox yet
@@ -452,6 +469,10 @@ class FiverrChatObserver {
   }
 
   private async scanAll(): Promise<void> {
+    if (!isContextValid()) {
+      this.stop();
+      return;
+    }
     if (this.isScanning) {
       this.scanQueued = true;
       return;
@@ -631,6 +652,10 @@ class FiverrChatObserver {
   }
 
   private notifyBackground(messages: ChatMessage[]): void {
+    if (!isContextValid()) {
+      this.stop();
+      return;
+    }
     // Save a cached score so we can show it offline
     this.saveLastKnownScore();
 
