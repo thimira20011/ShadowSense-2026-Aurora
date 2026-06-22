@@ -108,11 +108,25 @@ interface CacheEntry {
 
 const _memCache = new Map<string, CacheEntry>();
 
+function isContextValid(): boolean {
+  try {
+    if (typeof chrome === "undefined" || !chrome.runtime || !chrome.runtime.id) {
+      return false;
+    }
+    chrome.runtime.getManifest();
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 async function getCached(key: string): Promise<CacheEntry | null> {
+  if (!isContextValid()) return null;
   const mem = _memCache.get(key);
   if (mem && Date.now() - mem.cachedAt < CACHE_TTL_MS) return mem;
   return new Promise((resolve) => {
     chrome.storage.local.get([STORAGE_KEY], (r) => {
+      if (!isContextValid()) { resolve(null); return; }
       const store: Record<string, CacheEntry> = r[STORAGE_KEY] ?? {};
       const e = store[key];
       if (e && Date.now() - e.cachedAt < CACHE_TTL_MS) { _memCache.set(key, e); resolve(e); }
@@ -122,9 +136,11 @@ async function getCached(key: string): Promise<CacheEntry | null> {
 }
 
 async function setCached(key: string, entry: CacheEntry): Promise<void> {
+  if (!isContextValid()) return;
   _memCache.set(key, entry);
   return new Promise((resolve) => {
     chrome.storage.local.get([STORAGE_KEY], (r) => {
+      if (!isContextValid()) { resolve(); return; }
       const store: Record<string, CacheEntry> = r[STORAGE_KEY] ?? {};
       const now = Date.now();
       for (const [k, v] of Object.entries(store)) {
@@ -177,6 +193,7 @@ function scrapeJobCard(card: Element, index: number): ScrapedJobCard | null {
 let _activeRequests = 0;
 
 async function analyzeAndBadge(job: ScrapedJobCard): Promise<void> {
+  if (!isContextValid()) return;
   if (document.querySelector(`[${BADGE_INJECTED_ATTR}="${job.badgeId}"]`)) return;
 
   injectBadge(job.anchorElement,
@@ -243,6 +260,7 @@ async function analyzeAndBadge(job: ScrapedJobCard): Promise<void> {
 // ─── Page scan ────────────────────────────────────────────────────────────────
 
 async function scanPage(): Promise<void> {
+  if (!isContextValid()) return;
   if (isBuyerRequestsPage() || window.location.pathname.startsWith("/categories/")) {
     const cards = queryAll(document, JOB_CARD_SELECTORS).slice(0, MAX_CONCURRENT * 4);
     console.log(`[ShadowSense] Found ${cards.length} job cards/listings on requests/categories page.`);
@@ -259,6 +277,10 @@ let _lastUrl = window.location.href;
 let _navTimer: ReturnType<typeof setTimeout> | null = null;
 
 function handleNavigation(): void {
+  if (!isContextValid()) {
+    window.removeEventListener("popstate", handleNavigation);
+    return;
+  }
   if (window.location.href === _lastUrl) return;
   _lastUrl = window.location.href;
   if (_navTimer !== null) clearTimeout(_navTimer);
@@ -271,13 +293,21 @@ function handleNavigation(): void {
 (function patchHistory(): void {
   const push    = history.pushState.bind(history);
   const replace = history.replaceState.bind(history);
-  history.pushState    = (...a) => { push(...a);    handleNavigation(); };
-  history.replaceState = (...a) => { replace(...a); handleNavigation(); };
+  history.pushState    = (...a) => { push(...a);    if (isContextValid()) handleNavigation(); };
+  history.replaceState = (...a) => { replace(...a); if (isContextValid()) handleNavigation(); };
 })();
 window.addEventListener("popstate", handleNavigation);
 
 let _mutationDebounce: ReturnType<typeof setTimeout> | null = null;
-new MutationObserver(() => {
+const observer = new MutationObserver((mutations, obs) => {
+  if (!isContextValid()) {
+    obs.disconnect();
+    if (_mutationDebounce !== null) {
+      clearTimeout(_mutationDebounce);
+      _mutationDebounce = null;
+    }
+    return;
+  }
   if (_mutationDebounce !== null) clearTimeout(_mutationDebounce);
   _mutationDebounce = setTimeout(() => {
     _mutationDebounce = null;
@@ -285,7 +315,8 @@ new MutationObserver(() => {
       void scanPage().catch(() => { /* silent */ });
     }
   }, 600);
-}).observe(document.body, { childList: true, subtree: true });
+});
+observer.observe(document.body, { childList: true, subtree: true });
 
 // ─── Entry point ──────────────────────────────────────────────────────────────
 

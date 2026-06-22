@@ -141,11 +141,25 @@ interface CacheEntry {
 
 const _memCache = new Map<string, CacheEntry>();
 
+function isContextValid(): boolean {
+  try {
+    if (typeof chrome === "undefined" || !chrome.runtime || !chrome.runtime.id) {
+      return false;
+    }
+    chrome.runtime.getManifest();
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 async function getCached(key: string): Promise<CacheEntry | null> {
+  if (!isContextValid()) return null;
   const mem = _memCache.get(key);
   if (mem && Date.now() - mem.cachedAt < CACHE_TTL_MS) return mem;
   return new Promise((resolve) => {
     chrome.storage.local.get([STORAGE_KEY], (r) => {
+      if (!isContextValid()) { resolve(null); return; }
       const store: Record<string, CacheEntry> = r[STORAGE_KEY] ?? {};
       const e = store[key];
       if (e && Date.now() - e.cachedAt < CACHE_TTL_MS) { _memCache.set(key, e); resolve(e); }
@@ -155,9 +169,11 @@ async function getCached(key: string): Promise<CacheEntry | null> {
 }
 
 async function setCached(key: string, entry: CacheEntry): Promise<void> {
+  if (!isContextValid()) return;
   _memCache.set(key, entry);
   return new Promise((resolve) => {
     chrome.storage.local.get([STORAGE_KEY], (r) => {
+      if (!isContextValid()) { resolve(); return; }
       const store: Record<string, CacheEntry> = r[STORAGE_KEY] ?? {};
       const now = Date.now();
       for (const [k, v] of Object.entries(store)) {
@@ -229,6 +245,7 @@ function scrapeGigCard(card: Element, index: number): ScrapedGig | null {
 let _activeRequests = 0;
 
 async function analyzeAndBadge(gig: ScrapedGig): Promise<void> {
+  if (!isContextValid()) return;
   if (document.querySelector(`[${BADGE_INJECTED_ATTR}="${gig.badgeId}"]`)) return;
 
   injectBadge(gig.anchorElement,
@@ -297,6 +314,7 @@ async function analyzeAndBadge(gig: ScrapedGig): Promise<void> {
 // ─── Page scan ────────────────────────────────────────────────────────────────
 
 async function scanPage(): Promise<void> {
+  if (!isContextValid()) return;
   if (isGigDetailPage()) {
     const gig = scrapeGigDetailPage();
     if (gig) await analyzeAndBadge(gig);
@@ -317,6 +335,10 @@ let _lastUrl = window.location.href;
 let _navTimer: ReturnType<typeof setTimeout> | null = null;
 
 function handleNavigation(): void {
+  if (!isContextValid()) {
+    window.removeEventListener("popstate", handleNavigation);
+    return;
+  }
   if (window.location.href === _lastUrl) return;
   _lastUrl = window.location.href;
   if (_navTimer !== null) clearTimeout(_navTimer);
@@ -329,19 +351,28 @@ function handleNavigation(): void {
 (function patchHistory(): void {
   const push    = history.pushState.bind(history);
   const replace = history.replaceState.bind(history);
-  history.pushState    = (...a) => { push(...a);    handleNavigation(); };
-  history.replaceState = (...a) => { replace(...a); handleNavigation(); };
+  history.pushState    = (...a) => { push(...a);    if (isContextValid()) handleNavigation(); };
+  history.replaceState = (...a) => { replace(...a); if (isContextValid()) handleNavigation(); };
 })();
 window.addEventListener("popstate", handleNavigation);
 
 let _mutationDebounce: ReturnType<typeof setTimeout> | null = null;
-new MutationObserver(() => {
+const observer = new MutationObserver((mutations, obs) => {
+  if (!isContextValid()) {
+    obs.disconnect();
+    if (_mutationDebounce !== null) {
+      clearTimeout(_mutationDebounce);
+      _mutationDebounce = null;
+    }
+    return;
+  }
   if (_mutationDebounce !== null) clearTimeout(_mutationDebounce);
   _mutationDebounce = setTimeout(() => {
     _mutationDebounce = null;
     if (isSearchOrCategoryPage()) void scanPage().catch(() => { /* silent */ });
   }, 600);
-}).observe(document.body, { childList: true, subtree: true });
+});
+observer.observe(document.body, { childList: true, subtree: true });
 
 // ─── Entry point ──────────────────────────────────────────────────────────────
 

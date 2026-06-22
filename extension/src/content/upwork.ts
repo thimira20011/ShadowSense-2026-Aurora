@@ -188,7 +188,15 @@ function fingerprint(sender: string, text: string, timestamp: string): string {
 }
 
 function isContextValid(): boolean {
-  return typeof chrome !== "undefined" && !!chrome.runtime && !!chrome.runtime.id;
+  try {
+    if (typeof chrome === "undefined" || !chrome.runtime || !chrome.runtime.id) {
+      return false;
+    }
+    chrome.runtime.getManifest();
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 function extractTimestamp(row: Element): string {
@@ -378,9 +386,13 @@ class UpworkChatObserver {
         return;
       }
       if (!this.stopped) {
-        void this.scanAll().catch((err) =>
-          console.error('[ShadowSense] Interval scan error:', err)
-        );
+        void this.scanAll().catch((err) => {
+          if (!isContextValid() || (err.message && err.message.includes("Extension context invalidated"))) {
+            this.stop();
+            return;
+          }
+          console.error('[ShadowSense] Interval scan error:', err);
+        });
       }
     }, 8_000);
   }
@@ -415,9 +427,13 @@ class UpworkChatObserver {
         container.className.slice(0, 60)
       );
       // Scan the messages in the newly found container immediately
-      void this.scanAll().catch((err) =>
-        console.error('[ShadowSense] Post-attach scan error:', err)
-      );
+      void this.scanAll().catch((err) => {
+        if (!isContextValid() || (err.message && err.message.includes("Extension context invalidated"))) {
+          this.stop();
+          return;
+        }
+        console.error('[ShadowSense] Post-attach scan error:', err);
+      });
     } else if (attempts < 30) {
       if (this.attachRetryTimer !== null) clearTimeout(this.attachRetryTimer);
       this.attachRetryTimer = setTimeout(() => this.attach(attempts + 1), 1000);
@@ -444,9 +460,13 @@ class UpworkChatObserver {
     if (this.debounceTimer !== null) clearTimeout(this.debounceTimer);
     this.debounceTimer = setTimeout(() => {
       this.debounceTimer = null;
-      void this.scanAll().catch((err) =>
-        console.error("[ShadowSense] Scan error:", err)
-      );
+      void this.scanAll().catch((err) => {
+        if (!isContextValid() || (err.message && err.message.includes("Extension context invalidated"))) {
+          this.stop();
+          return;
+        }
+        console.error("[ShadowSense] Scan error:", err);
+      });
     }, DEBOUNCE_MS);
   }
 
@@ -1595,11 +1615,16 @@ async function handleNavigation(): Promise<void> {
   };
 })();
 
-window.addEventListener("popstate", () => {
+function popstateListener(): void {
+  if (!isContextValid()) {
+    window.removeEventListener("popstate", popstateListener);
+    return;
+  }
   void handleNavigation().catch((err) =>
     console.error("[ShadowSense] Popstate navigation error:", err)
   );
-});
+}
+window.addEventListener("popstate", popstateListener);
 
 // ─── Polling-based URL monitor (fallback for Upwork's internal Angular router)
 // Upwork may use Zone.js or a custom router that patches history differently.
@@ -1607,6 +1632,8 @@ window.addEventListener("popstate", () => {
 const urlPollTimer = setInterval(() => {
   if (!isContextValid()) {
     clearInterval(urlPollTimer);
+    currentObserver?.stop();
+    currentObserver = null;
     return;
   }
   void handleNavigation().catch((err) =>
