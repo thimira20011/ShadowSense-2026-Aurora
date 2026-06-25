@@ -206,9 +206,9 @@ class TestIdentityAgentGeminiMessageText:
         message = "Send money via Western Union outside the platform."
 
         # Mock Ollama client availability and response so it executes _try_ollama
-        agent.client = MagicMock()
-        agent.client.is_available.return_value = True
-        agent.client.generate.return_value = '{"identity_risk": 50, "anomalies": [], "confidence": 0.9}'
+        agent.ollama_client = MagicMock()
+        agent.ollama_client.is_available.return_value = True
+        agent.ollama_client.generate.return_value = '{"identity_risk": 50, "anomalies": [], "confidence": 0.9}'
 
         with patch.object(agent, "_build_prompt", wraps=agent._build_prompt) as mock_bp:
             agent.verify(profile, message)

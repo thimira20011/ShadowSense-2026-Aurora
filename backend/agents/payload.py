@@ -153,6 +153,7 @@ class PayloadAgent:
                 "payload_risk": float(parsed.get("payload_risk", 0.0)),
                 "threats":      parsed.get("threats", []),
                 "confidence":   float(parsed.get("confidence", 1.0)),
+                "tier_used":    "ollama",
             }
 
         except Exception as exc:
@@ -170,4 +171,5 @@ class PayloadAgent:
             "payload_risk": 0.0,
             "threats":      [],
             "confidence":   1.0,
+            "tier_used":    "stub",
         }
