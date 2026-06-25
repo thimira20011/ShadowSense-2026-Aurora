@@ -8,4 +8,4 @@ python -m venv venv
 # On macOS/Linux: source venv/bin/activate
 
 pip install -r requirements.txt
-python main.py
+infisical run --env=dev -- python main.py

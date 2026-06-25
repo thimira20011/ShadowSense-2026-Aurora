@@ -81,7 +81,8 @@ chrome.alarms.onAlarm.addListener((alarm) => {
 // ─── Backend analysis helper ──────────────────────────────────────────────────
 
 async function analyzeWithBackend(
-  message: CapturedMessage
+  message: CapturedMessage,
+  buyerProfile?: Record<string, unknown>
 ): Promise<BackendAnalysisResponse> {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), ANALYSIS_TIMEOUT_MS);
@@ -94,7 +95,14 @@ async function analyzeWithBackend(
         text: message.text,
         sender: message.sender,
         timestamp: message.timestamp,
-        context: { conversationId: message.conversationId, pageUrl: message.pageUrl },
+        context: {
+          conversationId: message.conversationId,
+          pageUrl: message.pageUrl,
+          // Profile fields — passed through directly to IdentityAgent.
+          // These keys match what ShieldAgent.defend() reads from context:
+          // account_age_days, reviews, verified, bio, username, country.
+          ...(buyerProfile ?? {}),
+        },
       }),
       signal: controller.signal,
     });
@@ -158,7 +166,13 @@ async function storeResult(
 
 chrome.runtime.onMessage.addListener(
   (
-    request: { type: string; payload?: unknown },
+    request: {
+      type: string;
+      payload?: unknown;
+      /** Buyer/seller profile metadata scraped from the Fiverr/Upwork sidebar.
+       *  Passed through to the backend IdentityAgent via the `context` field. */
+      buyerProfile?: Record<string, unknown>;
+    },
     _sender,
     sendResponse: (response: unknown) => void
   ) => {
@@ -234,7 +248,16 @@ chrome.runtime.onMessage.addListener(
         text: transcript.slice(0, 5000), // cap at 5k chars
       };
 
-      analyzeWithBackend(analysisMessage)
+      const buyerProfile = (request as { buyerProfile?: Record<string, unknown> }).buyerProfile;
+
+      if (buyerProfile && Object.keys(buyerProfile).length > 0) {
+        console.log(
+          `[ShadowSense BG] Including buyer profile in analysis request:`,
+          JSON.stringify(buyerProfile)
+        );
+      }
+
+      analyzeWithBackend(analysisMessage, buyerProfile)
         .then((result) => storeResult(result, latest).then(() => result))
         .then((result) => {
           const level = backendLevelToFrontend(result.verdict.trust_score.level);
