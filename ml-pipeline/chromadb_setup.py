@@ -1,16 +1,22 @@
 """ChromaDB vector database initialization and setup."""
 import chromadb
+from chromadb.config import Settings
 import os
 
 
 class ChromaDBManager:
     """Manages ChromaDB initialization and collections."""
-    
+
     def __init__(self, persist_dir: str = "./chromadb"):
         self.persist_dir = persist_dir
         os.makedirs(persist_dir, exist_ok=True)
-        self.client = chromadb.Client()
-    
+        # Use PersistentClient so data survives restarts.
+        # chromadb.Client() (the old ephemeral/in-memory client) is deprecated.
+        self.client = chromadb.PersistentClient(
+            path=persist_dir,
+            settings=Settings(anonymized_telemetry=False),
+        )
+
     def initialize_collections(self):
         """Create default collections for scam patterns."""
         # Scam patterns collection
