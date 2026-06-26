@@ -164,8 +164,8 @@ trust_score = clamp(100 − weighted_risk − chromadb_penalty + benign_boost, 0
 # Unit tests (no API keys required)
 pytest tests/unit/ -v
 
-# Full suite with secrets
-infisical run --env=dev -- pytest tests/ -v
+# Full suite with secrets (use --command to avoid Infisical flag parsing)
+infisical run --env=dev --command ".venv\Scripts\pytest.exe tests/ -v"
 ```
 
 ---
