@@ -492,8 +492,8 @@ class ShieldAgent:
                 prompt=user_prompt,
                 system_prompt=system_prompt,
                 temperature=0.3,  # slight creativity for variety
-                max_tokens=400,
-                timeout=18,
+                max_tokens=300,
+                timeout=45,
             )
             # Strip DeepSeek <think>...</think> blocks
             import re
