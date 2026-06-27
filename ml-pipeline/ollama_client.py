@@ -93,6 +93,7 @@ class OllamaClient:
             "options": {
                 "temperature": temperature,
                 "num_predict": max_tokens,
+                "num_ctx": 2048,  # explicit context window — prevents OOM/500 errors
                 "seed": seed,
             },
         }

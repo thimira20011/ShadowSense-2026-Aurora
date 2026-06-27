@@ -31,6 +31,7 @@ async function postOverride(messageId: string, trustScore: number): Promise<void
       }),
       signal: controller.signal,
     });
+    if (!res.ok) throw new Error(`Override API returned HTTP ${res.status}`);
     console.info('[ShadowSense] ActionButtons override sent — HTTP', res.status);
   } finally {
     clearTimeout(timer);
