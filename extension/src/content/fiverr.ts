@@ -62,6 +62,221 @@ const DEBOUNCE_MS = 300;
  *  Must be >= ANALYSIS_TIMEOUT_MS in background.ts (90 s) + buffer. */
 const NOTIFY_TIMEOUT_MS = 120_000;
 
+// ─── Buyer / Sender profile extraction ────────────────────────────────────
+
+/**
+ * Profile metadata extracted from the Fiverr conversation sidebar.
+ * All fields are optional — only present when the DOM element is found.
+ */
+export interface BuyerProfile {
+  username?: string;
+  country?: string;
+  /** Days since account was created (derived from "Member Since" text) */
+  account_age_days?: number;
+  /** Total number of reviews the buyer has left */
+  reviews?: number;
+  /** Whether the buyer has a payment-verified badge */
+  verified?: boolean;
+  /** Profile bio / description text */
+  bio?: string;
+  /** Buyer level label if shown (e.g. "New Buyer", "Level 1") */
+  level?: string;
+}
+
+/**
+ * Extract buyer profile metadata from the Fiverr conversation sidebar.
+ *
+ * Fiverr renders a user info panel to the right of (or above) the chat area.
+ * We try several stable selectors. All fields are best-effort — missing fields
+ * are simply omitted so the IdentityAgent gracefully handles partial data.
+ */
+function extractBuyerProfile(): BuyerProfile {
+  const profile: BuyerProfile = {};
+
+  // ── Username ──────────────────────────────────────────────────────────────
+  const usernameSelectors = [
+    '[data-testid*="username"]',
+    '[data-testid*="seller-name"]',
+    '[data-testid*="buyer-name"]',
+    '.conversation-sidebar [class*="username"]',
+    '.conversation-sidebar [class*="userName"]',
+    'aside [class*="username"]',
+    'aside [class*="userName"]',
+    '[class*="user-info"] [class*="username"]',
+    '[class*="userInfo"] [class*="username"]',
+  ];
+  for (const sel of usernameSelectors) {
+    try {
+      const el = document.querySelector(sel);
+      const text = el?.textContent?.trim();
+      if (text && text.length > 0 && text.length < 60) {
+        profile.username = text;
+        break;
+      }
+    } catch { /* ignore */ }
+  }
+
+  // ── Country ───────────────────────────────────────────────────────────────
+  const countrySelectors = [
+    '[data-testid*="country"]',
+    '[class*="country"]',
+    '[aria-label*="country" i]',
+    'aside [class*="location"]',
+    '[class*="user-info"] [class*="location"]',
+  ];
+  for (const sel of countrySelectors) {
+    try {
+      const el = document.querySelector(sel);
+      const text = el?.textContent?.trim();
+      if (text && text.length > 0 && text.length < 60) {
+        profile.country = text;
+        break;
+      }
+    } catch { /* ignore */ }
+  }
+
+  // ── Member Since (→ account_age_days) ────────────────────────────────────
+  // Fiverr shows "Member since Jan 2024" or similar — parse to days since.
+  const memberSinceSelectors = [
+    '[data-testid*="member-since"]',
+    '[class*="memberSince"]',
+    '[class*="member-since"]',
+  ];
+  const memberSinceTextSelectors = [
+    'aside',
+    '.conversation-sidebar',
+    '[class*="user-info"]',
+    '[class*="userInfo"]',
+  ];
+  // Try specific selectors first
+  let memberSinceText: string | null = null;
+  for (const sel of memberSinceSelectors) {
+    try {
+      const el = document.querySelector(sel);
+      if (el?.textContent) { memberSinceText = el.textContent; break; }
+    } catch { /* ignore */ }
+  }
+  // Heuristic text search in sidebar areas
+  if (!memberSinceText) {
+    for (const containerSel of memberSinceTextSelectors) {
+      try {
+        const container = document.querySelector(containerSel);
+        if (!container) continue;
+        const text = container.textContent ?? "";
+        const match = text.match(/member\s+since[:\s]+([A-Za-z]+\.?\s+\d{4})/i);
+        if (match) { memberSinceText = match[1]; break; }
+      } catch { /* ignore */ }
+    }
+  }
+  if (memberSinceText) {
+    // Try to parse "Jan 2024", "January 2024", "Jan. 2024"
+    const cleaned = memberSinceText.replace(/member\s+since[:\s]*/i, "").trim();
+    const parsed = Date.parse(cleaned);
+    if (!isNaN(parsed)) {
+      const days = Math.floor((Date.now() - parsed) / 86_400_000);
+      if (days >= 0 && days < 365 * 30) {
+        profile.account_age_days = days;
+      }
+    }
+  }
+
+  // ── Reviews count ─────────────────────────────────────────────────────────
+  const reviewSelectors = [
+    '[data-testid*="reviews-count"]',
+    '[data-testid*="review-count"]',
+    '[class*="reviewsCount"]',
+    '[class*="reviews-count"]',
+  ];
+  for (const sel of reviewSelectors) {
+    try {
+      const el = document.querySelector(sel);
+      const text = el?.textContent?.trim() ?? "";
+      const num = parseInt(text.replace(/[^0-9]/g, ""), 10);
+      if (!isNaN(num)) {
+        profile.reviews = num;
+        break;
+      }
+    } catch { /* ignore */ }
+  }
+  // Heuristic: look for "X reviews" in sidebar text
+  if (profile.reviews === undefined) {
+    for (const containerSel of memberSinceTextSelectors) {
+      try {
+        const container = document.querySelector(containerSel);
+        if (!container) continue;
+        const text = container.textContent ?? "";
+        const match = text.match(/(\d+)\s+reviews?/i);
+        if (match) {
+          profile.reviews = parseInt(match[1], 10);
+          break;
+        }
+      } catch { /* ignore */ }
+    }
+  }
+
+  // ── Verified badge ────────────────────────────────────────────────────────
+  const verifiedSelectors = [
+    '[data-testid*="verified"]',
+    '[class*="verified"]',
+    '[aria-label*="verified" i]',
+    '[title*="verified" i]',
+    'aside img[alt*="verified" i]',
+  ];
+  for (const sel of verifiedSelectors) {
+    try {
+      const el = document.querySelector(sel);
+      if (el) {
+        profile.verified = true;
+        break;
+      }
+    } catch { /* ignore */ }
+  }
+  // If no verified badge found, default to false only when we have other data
+  if (profile.verified === undefined && (profile.username || profile.account_age_days !== undefined)) {
+    profile.verified = false;
+  }
+
+  // ── Bio ───────────────────────────────────────────────────────────────────
+  const bioSelectors = [
+    '[data-testid*="bio"]',
+    '[data-testid*="description"]',
+    '[class*="userDescription"]',
+    '[class*="user-description"]',
+    'aside [class*="bio"]',
+    'aside p',
+  ];
+  for (const sel of bioSelectors) {
+    try {
+      const el = document.querySelector(sel);
+      const text = el?.textContent?.trim();
+      if (text && text.length > 5 && text.length < 500) {
+        profile.bio = text;
+        break;
+      }
+    } catch { /* ignore */ }
+  }
+
+  // ── Level ─────────────────────────────────────────────────────────────────
+  const levelSelectors = [
+    '[data-testid*="level"]',
+    '[class*="buyerLevel"]',
+    '[class*="buyer-level"]',
+    '[class*="userLevel"]',
+  ];
+  for (const sel of levelSelectors) {
+    try {
+      const el = document.querySelector(sel);
+      const text = el?.textContent?.trim();
+      if (text && text.length > 0 && text.length < 40) {
+        profile.level = text;
+        break;
+      }
+    } catch { /* ignore */ }
+  }
+
+  return profile;
+}
+
 // ─── Selector catalogue ────────────────────────────────────────────────────
 /**
  * Ordered lists of CSS selectors tried in sequence.
@@ -78,8 +293,6 @@ const CHAT_CONTAINER_SELECTORS = [
   "main [class*='conversation']",
   "main [class*='messages']",
   "main [class*='chat']",
-  // Fallback: the <main> landmark itself so MutationObserver still fires
-  "main",
 ] as const;
 
 /** Individual message bubble / row */
@@ -175,6 +388,10 @@ function fingerprint(sender: string, text: string, timestamp: string): string {
     h = (h * 0x01000193) >>> 0;
   }
   return h.toString(16);
+}
+
+function isContextValid(): boolean {
+  return typeof chrome !== "undefined" && !!chrome.runtime && !!chrome.runtime.id;
 }
 
 /** Extract a human-readable timestamp string from a DOM element */
@@ -344,6 +561,7 @@ class FiverrChatObserver {
   // ── Lifecycle ────────────────────────────────────────────────────────────
 
   async init(): Promise<void> {
+    if (!isContextValid()) return;
     this.stopped = false;
 
     // Fix A: Always disconnect the stale observer before re-attaching.
@@ -380,6 +598,10 @@ class FiverrChatObserver {
     // messages (e.g. virtual-scroll, lazy-loaded bubbles).
     if (this.intervalTimer !== null) clearInterval(this.intervalTimer);
     this.intervalTimer = setInterval(() => {
+      if (!isContextValid()) {
+        this.stop();
+        return;
+      }
       if (!this.stopped) {
         void this.scanAll().catch((err) =>
           console.error('[ShadowSense] Interval scan error:', err)
@@ -393,7 +615,7 @@ class FiverrChatObserver {
    * Retries every second for up to 30 s to handle SPA lazy-loading.
    */
   private attach(attempts = 0): void {
-    if (this.stopped) return;
+    if (!isContextValid() || this.stopped) return;
 
     const container = queryFirst(document, CHAT_CONTAINER_SELECTORS);
 
@@ -403,7 +625,13 @@ class FiverrChatObserver {
         this.attachRetryTimer = null;
       }
       this.chatContainer = container;
-      this.observer = new MutationObserver(() => this.scheduleExtraction());
+      this.observer = new MutationObserver(() => {
+        if (!isContextValid()) {
+          this.stop();
+          return;
+        }
+        this.scheduleExtraction();
+      });
       this.observer.observe(container, {
         childList: true,
         subtree: true,
@@ -414,6 +642,10 @@ class FiverrChatObserver {
         "[ShadowSense] MutationObserver attached to chat container:",
         container.tagName,
         container.className.slice(0, 60)
+      );
+      // Scan the messages in the newly found container immediately
+      void this.scanAll().catch((err) =>
+        console.error('[ShadowSense] Post-attach scan error:', err)
       );
     } else if (attempts < 30) {
       // Retry – the SPA may not have rendered the inbox yet
@@ -452,6 +684,10 @@ class FiverrChatObserver {
   }
 
   private async scanAll(): Promise<void> {
+    if (!isContextValid()) {
+      this.stop();
+      return;
+    }
     if (this.isScanning) {
       this.scanQueued = true;
       return;
@@ -631,6 +867,10 @@ class FiverrChatObserver {
   }
 
   private notifyBackground(messages: ChatMessage[]): void {
+    if (!isContextValid()) {
+      this.stop();
+      return;
+    }
     // Save a cached score so we can show it offline
     this.saveLastKnownScore();
 
@@ -648,8 +888,24 @@ class FiverrChatObserver {
     const latestText = incomingMessages.length > 0 ? incomingMessages[incomingMessages.length - 1].text : "";
 
     try {
+      // Extract buyer profile from the Fiverr sidebar for identity analysis
+      const buyerProfile = extractBuyerProfile();
+      const hasProfileData = Object.keys(buyerProfile).length > 0;
+      if (hasProfileData) {
+        console.log(
+          "[ShadowSense] Extracted buyer profile:",
+          JSON.stringify(buyerProfile)
+        );
+      } else {
+        console.debug("[ShadowSense] No buyer profile data found in DOM sidebar.");
+      }
+
       chrome.runtime.sendMessage(
-        { type: "FIVERR_MESSAGES_CAPTURED", payload: messages },
+        {
+          type: "FIVERR_MESSAGES_CAPTURED",
+          payload: messages,
+          buyerProfile: hasProfileData ? buyerProfile : undefined,
+        },
         (response) => {
           clearTimeout(timeoutId);
           this.hideAnalyzingBadge(); // Fix D: hide spinner on any response

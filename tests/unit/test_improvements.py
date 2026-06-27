@@ -205,6 +205,11 @@ class TestIdentityAgentGeminiMessageText:
         profile = {"account_age_days": 10, "reviews": 0, "verified": False}
         message = "Send money via Western Union outside the platform."
 
+        # Mock Ollama client availability and response so it executes _try_ollama
+        agent.ollama_client = MagicMock()
+        agent.ollama_client.is_available.return_value = True
+        agent.ollama_client.generate.return_value = '{"identity_risk": 50, "anomalies": [], "confidence": 0.9}'
+
         with patch.object(agent, "_build_prompt", wraps=agent._build_prompt) as mock_bp:
             agent.verify(profile, message)
             # _build_prompt should have been called with message_text=message
@@ -237,6 +242,7 @@ class TestLinguisticGroqKeyRotation:
 
         # Build a minimal agent with two fake Groq clients
         agent = LinguisticAgent()
+        agent.is_mock = False
 
         call_order = []
 
@@ -283,6 +289,7 @@ class TestLinguisticGroqKeyRotation:
         from backend.agents.linguistic import LinguisticAgent
 
         agent = LinguisticAgent()
+        agent.is_mock = False
         gemini_called = []
 
         class FakeGroqClient429:
@@ -553,10 +560,10 @@ class TestOllamaClientDynamicResolution:
             client = OllamaClient()
             assert client.model == "deepseek-r1:1.5b"
 
-        # Case 3: Configured is not installed, fallback to "llama3.2:3b"
+        # Case 3: Configured is not installed, fallback to "deepseek-r1:1.5b"
         with patch.dict("os.environ", {"OLLAMA_MODEL": "non-existent-model"}):
             client = OllamaClient()
-            assert client.model == "llama3.2:3b"
+            assert client.model == "deepseek-r1:1.5b"
 
     @patch("requests.get", side_effect=Exception("Connection refused"))
     def test_dynamic_resolution_offline_fallback(self, mock_get):

@@ -90,7 +90,8 @@ function buildState(
     // Use backend suggested responses when available
     if (result.suggested_responses && result.suggested_responses.length > 0) {
       suggestedResponse = `"${result.suggested_responses[0]}"`;
-      suggestedTemplates = result.suggested_responses;
+      // Show remaining responses (index 1+) in the templates section to avoid duplication
+      suggestedTemplates = result.suggested_responses.slice(1);
     }
   }
 

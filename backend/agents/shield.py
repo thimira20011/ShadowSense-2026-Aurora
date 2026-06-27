@@ -68,9 +68,9 @@ class ShieldAgent:
                ─► PayloadAgent     (stub; DeepSeek-R1 / Ollama in Week 3)
 
     Weighted Trust Score formula:
-        weighted_risk = 0.4 * linguistic_urgency_score
-                      + 0.3 * identity_risk
-                      + 0.3 * payload_risk
+        weighted_risk = 0.45 * linguistic_urgency_score
+                      + 0.35 * identity_risk
+                      + 0.20 * payload_risk
         trust_score   = clamp(100 - weighted_risk, 0, 100)
     """
 
@@ -142,6 +142,15 @@ class ShieldAgent:
             profile_meta.setdefault("username", sender)
 
         payload_file  = extra_ctx.get("filename", "")
+        if not payload_file and text:
+            import re
+            file_match = re.search(r'\b[\w\-]+\.(?:exe|scr|bat|zip|rar|lnk|cmd|js|vbs|wsf|dmg|app|ipa|pdf|docx|xlsx)\b', text, re.IGNORECASE)
+            if file_match:
+                payload_file = file_match.group(0)
+            else:
+                url_match = re.search(r'https?://[^\s/$.?#].[^\s]*', text, re.IGNORECASE)
+                if url_match:
+                    payload_file = url_match.group(0)
 
         # ── 1. Concurrent Execution (SHIELD_AGENT_TIMEOUT_S = 22s default) ─
         # Uses the module-level singleton executor — no thread pool created per request.
@@ -242,8 +251,10 @@ class ShieldAgent:
             score, linguistic_res, identity_res, payload_res, similar_patterns
         )
 
-        # -- 8. Suggested response templates ---------------------------------
-        suggested_responses = self._suggested_responses(score)
+        # -- 8. Context-aware suggested responses ----------------------------
+        suggested_responses = self._generate_responses(
+            score, linguistic_res, identity_res, payload_res
+        )
 
         return {
             "trust_score": {
@@ -308,29 +319,60 @@ class ShieldAgent:
         payload_res:    dict[str, Any],
         similar_patterns: list[dict[str, Any]] = None,
     ) -> list[str]:
-        """Build human-readable bullet-point reasons for the Trust Score."""
+        """Build human-readable bullet-point reasons for the Trust Score.
+
+        Includes severity context, deduplication, and confidence weighting
+        so reasons clearly explain what was found rather than just listing
+        raw flag names.
+        """
         reasons: list[str] = []
+        seen_texts: set[str] = set()  # deduplication
+
+        def _add(text: str) -> None:
+            """Add a reason only if it's not a near-duplicate of an existing one."""
+            normalized = text.lower().strip()
+            if normalized not in seen_texts:
+                seen_texts.add(normalized)
+                reasons.append(text)
+
+        ling_confidence  = float(linguistic_res.get("confidence", 1.0))
+        ident_confidence = float(identity_res.get("confidence", 1.0))
+        ling_score       = float(linguistic_res.get("urgency_score", 0.0))
+        ident_risk       = float(identity_res.get("identity_risk", 0.0))
+        ling_tier        = linguistic_res.get("tier_used", "unknown")
+        ident_tier       = identity_res.get("tier_used", "unknown")
+
+        def _severity_tag(value: float, low: float = 30, high: float = 65) -> str:
+            if value >= high:
+                return "[HIGH]"
+            if value >= low:
+                return "[MODERATE]"
+            return "[LOW]"
 
         # Linguistic flags
         for flag in linguistic_res.get("red_flags", []):
-            reasons.append(f"Linguistic Analyst detected: {flag}")
+            tag = _severity_tag(ling_score)
+            conf_note = f" (confidence: {ling_confidence:.0%}, via {ling_tier})" if ling_confidence < 0.8 else f" (via {ling_tier})"
+            _add(f"{tag} Linguistic: {flag}{conf_note}")
 
         # Identity anomalies
         for anomaly in identity_res.get("anomalies", []):
-            reasons.append(f"Identity Profiler flagged: {anomaly}")
+            tag = _severity_tag(ident_risk)
+            conf_note = f" (confidence: {ident_confidence:.0%}, via {ident_tier})" if ident_confidence < 0.8 else f" (via {ident_tier})"
+            _add(f"{tag} Identity: {anomaly}{conf_note}")
 
         # Payload threats
         for threat in payload_res.get("threats", []):
-            reasons.append(f"Payload Auditor found: {threat}")
+            _add(f"[HIGH] Payload: {threat}")
 
-        # ChromaDB semantic matches (only surface high-confidence hits)
+        # ChromaDB semantic matches (only surface meaningful hits)
         if similar_patterns:
             for pat in similar_patterns:
                 sim = pat.get("similarity", 0.0)
-                if sim >= 0.55:   # threshold: meaningful semantic overlap
-                    reasons.append(
-                        f"ChromaDB: message matches known {pat['type']} pattern "
-                        f"(similarity {sim:.2f}, category: {pat.get('category', 'unknown')})"
+                if sim >= 0.55:
+                    _add(
+                        f"[MATCH] Pattern Match: message matches known '{pat.get('type', 'scam')}' pattern "
+                        f"(similarity {sim:.0%}, category: {pat.get('category', 'unknown')})"
                     )
 
         # Fallback when no flags raised but score is still low (weighted combination)
@@ -346,15 +388,21 @@ class ShieldAgent:
         return reasons
 
     @staticmethod
-    def _suggested_responses(score: int) -> list[str]:
-        """Return platform-appropriate response templates based on risk level."""
+    def _static_responses(score: int) -> list[str]:
+        """Static fallback response templates — used when Ollama is unavailable.
+
+        Thresholds aligned with _classify():
+          CLEAR     ≥ 70
+          ADVISORY  30–69
+          HIGH_RISK  0–29
+        """
         if score >= 70:
             return [
                 "I would be happy to help with this project. Could you share the full specifications?",
                 "Thanks for reaching out — I look forward to collaborating!",
                 "Sounds interesting. Please send the project brief and I'll get back to you shortly.",
             ]
-        if score >= 40:
+        if score >= 30:
             return [
                 "Thank you for your message. Please share all project details directly on the platform.",
                 "I'd love to help — could we keep all communication and files within the platform?",
@@ -369,3 +417,103 @@ class ShieldAgent:
             "I'll need to verify this request with platform support before continuing. "
             "Please provide your verified profile link.",
         ]
+
+    @staticmethod
+    def _generate_responses(
+        score: int,
+        linguistic_res: dict[str, Any],
+        identity_res:   dict[str, Any],
+        payload_res:    dict[str, Any],
+    ) -> list[str]:
+        """Generate context-aware response templates using Ollama (DeepSeek-R1).
+
+        Builds a short prompt summarising the detected threat type and risk level,
+        then asks DeepSeek-R1 to produce 3 professional response suggestions
+        tailored to the specific scam pattern found — not generic templates.
+
+        Falls back to static templates immediately if Ollama is unavailable,
+        so this method never raises.
+        """
+        import sys
+        from pathlib import Path
+        _ML_DIR = Path(__file__).resolve().parent.parent.parent / "ml-pipeline"
+        if str(_ML_DIR) not in sys.path:
+            sys.path.insert(0, str(_ML_DIR))
+
+        try:
+            from ollama_client import OllamaClient  # type: ignore
+            client = OllamaClient()
+            if not client.is_available():
+                raise RuntimeError("Ollama unavailable")
+        except Exception:
+            return ShieldAgent._static_responses(score)
+
+        # Summarise detected threats for the prompt
+        red_flags    = linguistic_res.get("red_flags", [])
+        anomalies    = identity_res.get("anomalies", [])
+        threats      = payload_res.get("threats", [])
+        all_signals  = red_flags + anomalies + threats
+
+        if score >= 70:
+            risk_label = "LOW RISK — conversation appears safe"
+        elif score >= 30:
+            risk_label = "MODERATE RISK — suspicious signals detected"
+        else:
+            risk_label = "HIGH RISK — strong scam indicators detected"
+
+        signals_summary = (
+            "\n".join(f"- {s}" for s in all_signals[:6])
+            if all_signals
+            else "- No specific flags raised (mild combined signal)"
+        )
+
+        system_prompt = (
+            "You are a freelance platform safety assistant. Your job is to write "
+            "professional, polite response suggestions for freelancers to send to clients "
+            "when a scam risk has been detected in their conversation.\n"
+            "Rules:\n"
+            "- Write exactly 3 response suggestions.\n"
+            "- Each response must be specific to the detected threat type — do NOT use "
+            "generic filler phrases.\n"
+            "- Keep each response under 2 sentences. Professional and firm tone.\n"
+            "- Return ONLY a JSON array of 3 strings. No explanation, no markdown."
+        )
+
+        user_prompt = (
+            f"Risk level: {risk_label}\n"
+            f"Trust score: {score}/100\n"
+            f"Detected signals:\n{signals_summary}\n\n"
+            "Generate 3 professional response suggestions the freelancer can send "
+            "to handle this situation safely. Return ONLY a JSON array of 3 strings."
+        )
+
+        try:
+            raw = client.generate(
+                prompt=user_prompt,
+                system_prompt=system_prompt,
+                temperature=0.3,  # slight creativity for variety
+                max_tokens=300,
+                timeout=45,
+            )
+            # Strip DeepSeek <think>...</think> blocks
+            import re
+            raw = re.sub(r"<think>.*?</think>", "", raw, flags=re.DOTALL).strip()
+            # Strip markdown fences
+            if "```json" in raw:
+                raw = raw.split("```json")[1].split("```")[0].strip()
+            elif "```" in raw:
+                raw = raw.split("```")[1].split("```")[0].strip()
+            # Find JSON array
+            arr_match = re.search(r"\[.*?\]", raw, re.DOTALL)
+            if arr_match:
+                import json
+                suggestions = json.loads(arr_match.group(0))
+                if isinstance(suggestions, list) and len(suggestions) >= 1:
+                    # Pad to 3 if shorter, trim if longer
+                    while len(suggestions) < 3:
+                        suggestions.append(ShieldAgent._static_responses(score)[len(suggestions)])
+                    return [str(s) for s in suggestions[:3]]
+        except Exception as exc:
+            logger.warning("ShieldAgent: Ollama response generation failed (%s) — using static templates.", exc)
+
+        return ShieldAgent._static_responses(score)

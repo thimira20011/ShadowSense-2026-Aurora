@@ -2,12 +2,13 @@ fastapi==0.136.3
 uvicorn==0.48.0
 pydantic==2.12.5
 python-dotenv==1.2.2
-crewai==1.14.5
 chromadb==1.1.1
 requests==2.34.2
 ollama==0.6.2
 httpx==0.28.1
 groq==1.2.0
-google-generativeai==0.8.6
 google-genai>=1.0.0
 slowapi>=0.1.9
+
+# Test dependencies
+pytest-asyncio>=0.23

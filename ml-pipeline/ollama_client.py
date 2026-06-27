@@ -15,7 +15,7 @@ class OllamaClient:
 
     def __init__(self, host: str = "http://localhost:11434"):
         self.host = host
-        self.configured_model = os.getenv("OLLAMA_MODEL") or os.getenv("DEEPSEEK_MODEL") or "llama3.2"
+        self.configured_model = os.getenv("OLLAMA_MODEL") or os.getenv("DEEPSEEK_MODEL") or "deepseek-r1"
         self.model = self.configured_model
         self._resolve_model()
 
@@ -46,7 +46,7 @@ class OllamaClient:
                         return
 
                 # Common fallbacks in order of preference
-                fallbacks = ["llama3.2", "deepseek-r1", "llama3.3", "llama"]
+                fallbacks = ["deepseek-r1", "deepseek"]
                 for f in fallbacks:
                     for m in models:
                         base_m = m.split(":")[0]
@@ -54,8 +54,8 @@ class OllamaClient:
                             self.model = m
                             return
 
-                # If no matches, fallback to first available
-                self.model = models[0]
+                # If no matches, fallback to configured_model
+                self.model = self.configured_model
         except Exception:
             pass
 
@@ -66,15 +66,26 @@ class OllamaClient:
         temperature: float = 0.0,
         max_tokens: int = 1000,
         timeout: int = 60,
-        seed: int = 42,
+        seed: Optional[int] = None,
     ) -> str:
         """Generate a response from the configured Ollama model.
 
         Defaults:
             temperature=0.0  — deterministic output for security analysis.
-            seed=42          — fixed seed so Ollama reproduces the same result
-                               when called with identical inputs.
+            seed             — derived from prompt content hash when not provided,
+                               so different inputs produce different deterministic
+                               outputs. Pass an explicit seed to force a fixed result.
         """
+        # Derive a stable, input-specific seed from the prompt content.
+        # Using a constant seed=42 caused near-identical JSON outputs for different
+        # inputs because DeepSeek-R1 can get "stuck" in the same generation path.
+        if seed is None:
+            h = 0x811c9dc5
+            for ch in (prompt + (system_prompt or "")):
+                h ^= ord(ch)
+                h = (h * 0x01000193) & 0xFFFFFFFF
+            seed = h & 0x7FFFFFFF  # keep positive, within int32
+
         payload = {
             "model": self.model,
             "prompt": prompt,
@@ -82,6 +93,7 @@ class OllamaClient:
             "options": {
                 "temperature": temperature,
                 "num_predict": max_tokens,
+                "num_ctx": 2048,  # explicit context window — prevents OOM/500 errors
                 "seed": seed,
             },
         }

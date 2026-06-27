@@ -23,6 +23,7 @@ Ollama setup (one-time)
 import sys
 import json
 import logging
+import re
 from pathlib import Path
 from typing import Any
 
@@ -135,6 +136,9 @@ class PayloadAgent:
                 temperature=0.0,
             )
 
+            # Strip <think>...</think> blocks from DeepSeek-R1 responses
+            response_text = re.sub(r"<think>.*?</think>", "", response_text, flags=re.DOTALL).strip()
+
             # Strip markdown fences if model returns them
             response_text = response_text.strip()
             if "```json" in response_text:
@@ -149,6 +153,7 @@ class PayloadAgent:
                 "payload_risk": float(parsed.get("payload_risk", 0.0)),
                 "threats":      parsed.get("threats", []),
                 "confidence":   float(parsed.get("confidence", 1.0)),
+                "tier_used":    "ollama",
             }
 
         except Exception as exc:
@@ -166,4 +171,5 @@ class PayloadAgent:
             "payload_risk": 0.0,
             "threats":      [],
             "confidence":   1.0,
+            "tier_used":    "stub",
         }

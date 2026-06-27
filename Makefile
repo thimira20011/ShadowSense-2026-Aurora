@@ -23,7 +23,7 @@ install-ml:
 	cd ml-pipeline && pip install -r requirements.txt
 
 run-backend:
-	cd backend && python main.py
+	cd backend && infisical run --env=dev -- python main.py
 
 build-extension:
 	cd extension && npm run build

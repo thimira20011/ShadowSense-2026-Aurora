@@ -1,18 +1,26 @@
-"""Identity verification agent — three-tier fallback implementation.
+"""Identity verification agent — four-tier fallback implementation.
 
-Fallback chain (fastest first when primary is unavailable):
-    Tier 1 → Google Gemini Flash  (primary, best quality, ~1.6 s)
-    Tier 2 → Ollama / deepseek-r1 (secondary, local, 15 s hard timeout)
-    Tier 3 → Enriched rule-based  (tertiary, < 1 ms, always available)
+Fallback chain (fastest / most accurate first):
+    Tier 1 → Google Gemini Flash   (primary, best quality, ~1.6 s)
+    Tier 2 → Groq llama-4-scout    (secondary, already configured, fast cloud)
+    Tier 3 → Ollama / deepseek-r1  (tertiary, local, 15 s hard timeout)
+    Tier 4 → Enriched rule-based   (always available, < 1 ms)
 
-Why three tiers?
-  - Gemini free-tier quotas can be exhausted (daily cap).
-  - Ollama is already running for the main analysis pipeline so we reuse it,
-    but we cap it at 15 s so it never blocks the overall 90 s orchestrator
-    timeout, and we use a dedicated thread so it doesn't compete with the
-    deepseek-r1 main call at the socket level.
-  - The enriched rule-based tier now analyses BOTH profile metadata AND the
-    message text for scam signals, so it's much stronger than the old version.
+Why four tiers?
+  - Gemini free-tier quotas can be exhausted (15 RPM daily cap).
+  - Groq uses the same GROQ_API_KEYS already configured for LinguisticAgent
+    and has a much more generous free quota (14,400 TPM on llama-4-scout).
+    Adding it as Tier 2 costs zero new configuration.
+  - Ollama is already running locally for the main analysis pipeline so we
+    reuse it at Tier 3 with a 15 s hard timeout so it never blocks the overall
+    orchestrator timeout.
+  - The enriched rule-based Tier 4 now analyses BOTH profile metadata AND the
+    message text for scam signals, so it is much stronger than a bare mock.
+
+Per-key cooldown tracking:
+  When a key returns 429, we record the earliest time we can retry it.
+  This prevents hot-looping across the same exhausted keys and ensures we
+  fall through to the next tier rather than burning retries on a known-dead key.
 """
 import time
 import json
@@ -27,9 +35,10 @@ from typing import Any
 
 from google import genai
 from google.genai import types as genai_types
+from groq import Groq
 
 from backend.config import (
-    GEMINI_API_KEYS, OLLAMA_HOST, DEEPSEEK_MODEL,
+    GEMINI_API_KEYS, GROQ_API_KEYS, GROQ_MODEL, OLLAMA_HOST, DEEPSEEK_MODEL,
     OLLAMA_IDENTITY_TIMEOUT_S, OLLAMA_IDENTITY_MAX_TOKENS,
 )
 from ._crewai_stub import Agent
@@ -48,20 +57,54 @@ logger = logging.getLogger(__name__)
 
 # ── Model constants ───────────────────────────────────────────────────────────
 GEMINI_MODEL  = "models/gemini-2.0-flash"
-# Ollama timeout/token settings now live in config.py (OLLAMA_IDENTITY_TIMEOUT_S / OLLAMA_IDENTITY_MAX_TOKENS)
+# Ollama timeout/token settings now live in config.py
+# GROQ_MODEL is imported from config.py (same one used by LinguisticAgent)
 
-# Shared executor for Ollama calls — 1 worker so we don't pile up requests
-# when Gemini quota is chronically exhausted.
+# Shared executor for Ollama identity calls — 1 worker keeps it from competing
+# with the main LinguisticAgent → Ollama channel.
 _ollama_executor = ThreadPoolExecutor(max_workers=1, thread_name_prefix="identity-ollama")
+
+# ── Per-key cooldown registry ─────────────────────────────────────────────────
+# {(provider, key_index): cooldown_until_epoch_s}
+# Keys appearing here are skipped until time.time() > cooldown_until_epoch_s.
+_COOLDOWN_LOCK: threading.Lock = threading.Lock()
+_COOLDOWN_UNTIL: dict[tuple[str, int], float] = {}
+
+# Default retry-after fallback when no header is present (60 s)
+_DEFAULT_RETRY_AFTER_S = 60.0
+
+
+def _set_cooldown(provider: str, idx: int, retry_after_s: float = _DEFAULT_RETRY_AFTER_S) -> None:
+    with _COOLDOWN_LOCK:
+        _COOLDOWN_UNTIL[(provider, idx)] = time.time() + retry_after_s
+    logger.warning(
+        "IdentityAgent[%s] key %d rate-limited — cooling down for %.0f s.",
+        provider, idx, retry_after_s,
+    )
+
+
+def _is_cooled_down(provider: str, idx: int) -> bool:
+    """Return True when the key is available (no active cooldown)."""
+    with _COOLDOWN_LOCK:
+        until = _COOLDOWN_UNTIL.get((provider, idx), 0.0)
+    return time.time() >= until
+
+
+def _parse_retry_after(exc: Exception) -> float:
+    """Extract Retry-After seconds from a 429 exception, default 60 s."""
+    exc_str = str(exc)
+    # Groq / Gemini sometimes embed the value in the message
+    m = re.search(r"retry[_\s-]?after[:\s]+([0-9.]+)", exc_str, re.IGNORECASE)
+    if m:
+        try:
+            return max(5.0, float(m.group(1)))
+        except ValueError:
+            pass
+    return _DEFAULT_RETRY_AFTER_S
 
 
 def _clamp_score(identity_risk: float, confidence: float) -> tuple[float, float]:
-    """Clamp identity_risk to [0, 100] and confidence to [0.0, 1.0].
-
-    LLMs occasionally return out-of-range values (e.g. 110 or -5 for risk,
-    1.2 for confidence). Clamping prevents those values from propagating into
-    the weighted Trust Score calculation and inflating/deflating the result.
-    """
+    """Clamp identity_risk to [0, 100] and confidence to [0.0, 1.0]."""
     return max(0.0, min(100.0, float(identity_risk))), max(0.0, min(1.0, float(confidence)))
 
 
@@ -72,7 +115,7 @@ class IdentityAgent:
     a structured risk assessment.
 
     Fallback chain:
-        Gemini → Ollama (15 s timeout) → Enriched rule-based
+        Gemini → Groq → Ollama (15 s timeout) → Enriched rule-based
     """
 
     def __init__(self) -> None:
@@ -90,29 +133,48 @@ class IdentityAgent:
             allow_delegation=False,
         )
 
-        self.client = OllamaClient(host=OLLAMA_HOST) if _OLLAMA_AVAILABLE else None
+        # ── Ollama client (Tier 3) ────────────────────────────────────────────
+        self.ollama_client = OllamaClient(host=OLLAMA_HOST) if _OLLAMA_AVAILABLE else None
 
-        self._lock   = threading.Lock()
-        self._index  = 0
-        self._clients: list[genai.Client] = []
-        self._keys:   list[str] = []
+        # ── Gemini clients (Tier 1) ───────────────────────────────────────────
+        self._gemini_lock   = threading.Lock()
+        self._gemini_index  = 0
+        self._gemini_clients: list[genai.Client] = []
+        self._gemini_keys:   list[str] = []
 
         for key in GEMINI_API_KEYS:
             if key and "placeholder" not in str(key).lower():
-                self._clients.append(genai.Client(api_key=key))
-                self._keys.append(key)
+                self._gemini_clients.append(genai.Client(api_key=key))
+                self._gemini_keys.append(key)
 
-        self.api_key = self._keys[0] if self._keys else None
+        self.api_key = self._gemini_keys[0] if self._gemini_keys else None
 
-        if self._clients:
-            self.is_mock = False
+        # ── Groq clients (Tier 2) ─────────────────────────────────────────────
+        self._groq_lock  = threading.Lock()
+        self._groq_index = 0
+        self._groq_clients: list[Groq] = []
+        self._groq_keys:   list[str]  = []
+
+        for key in GROQ_API_KEYS:
+            if key and "placeholder" not in str(key).lower():
+                self._groq_clients.append(Groq(api_key=key))
+                self._groq_keys.append(key)
+
+        is_mock = not self._gemini_clients and not self._groq_clients
+        self.is_mock = is_mock
+
+        if not is_mock:
             logger.info(
-                "IdentityAgent initialised with %d Gemini client(s), model: %s",
-                len(self._clients), GEMINI_MODEL,
+                "IdentityAgent initialised — Gemini clients: %d, Groq clients: %d, "
+                "Ollama: %s. Fallback chain: Gemini → Groq → Ollama → Rules",
+                len(self._gemini_clients), len(self._groq_clients),
+                "available" if self.ollama_client else "unavailable",
             )
         else:
-            self.is_mock = True
-            logger.warning("No valid GEMINI_API_KEYS configured. IdentityAgent will use Ollama/rule fallback.")
+            logger.warning(
+                "No valid GEMINI_API_KEYS or GROQ_API_KEYS configured. "
+                "IdentityAgent will use Ollama/rule fallback only."
+            )
 
     # ─────────────────────────────────────────────────────────────────────────
     # Public API
@@ -133,8 +195,8 @@ class IdentityAgent:
                 - username          (str)
                 - country           (str)
                 - bio               (str)
-            message_text: The raw chat message (used by the enriched rule tier
-                          to cross-check profile risk against message content).
+            message_text: The raw chat message (used by all tiers to
+                          cross-check profile risk against message content).
 
         Returns:
             Dict with:
@@ -157,17 +219,23 @@ class IdentityAgent:
             }
 
         # ── Tier 1: Gemini ────────────────────────────────────────────────────
-        if not self.is_mock:
+        if self._gemini_clients:
             result = self._try_gemini(identity_data, message_text, start)
             if result is not None:
                 return result
 
-        # ── Tier 2: Ollama ───────────────────────────────────────────────────
+        # ── Tier 2: Groq ─────────────────────────────────────────────────────
+        if self._groq_clients:
+            result = self._try_groq(identity_data, message_text, start)
+            if result is not None:
+                return result
+
+        # ── Tier 3: Ollama ───────────────────────────────────────────────────
         result = self._try_ollama(identity_data, message_text, start)
         if result is not None:
             return result
 
-        # ── Tier 3: Enriched rule-based ───────────────────────────────────────
+        # ── Tier 4: Enriched rule-based ───────────────────────────────────────
         return self._enriched_rules(identity_data, message_text, start)
 
     # ─────────────────────────────────────────────────────────────────────────
@@ -177,20 +245,24 @@ class IdentityAgent:
     def _try_gemini(
         self, identity_data: dict[str, Any], message_text: str, start: float
     ) -> dict[str, Any] | None:
-        """Try all Gemini keys in round-robin. Returns None if all are quota-limited.
+        """Try all Gemini keys in round-robin, honouring per-key cooldowns.
 
-        Includes message_text in the prompt so Gemini has the same context
-        as the Ollama and rule-based tiers.
+        Returns None if all keys are quota-limited → falls through to Groq.
         """
-        num_clients = len(self._clients)
+        num_clients = len(self._gemini_clients)
         last_exc: Exception | None = None
 
         for attempt in range(num_clients):
-            with self._lock:
-                idx    = self._index
-                client = self._clients[idx]
-                key    = self._keys[idx]
-                self._index = (self._index + 1) % num_clients
+            with self._gemini_lock:
+                idx    = self._gemini_index
+                client = self._gemini_clients[idx]
+                key    = self._gemini_keys[idx]
+                self._gemini_index = (self._gemini_index + 1) % num_clients
+
+            # Skip keys that are still cooling down from a previous 429
+            if not _is_cooled_down("gemini", idx):
+                logger.debug("IdentityAgent[Gemini]: key %d still cooling down — skipping.", idx)
+                continue
 
             masked = f"...{key[-6:]}" if len(key) > 6 else key
             logger.info(
@@ -210,23 +282,20 @@ class IdentityAgent:
                 exc_str  = str(exc)
 
                 if "429" in exc_str or "RESOURCE_EXHAUSTED" in exc_str:
-                    logger.warning(
-                        "IdentityAgent[Gemini]: key %d quota-limited (429). "
-                        "Trying next key… [%d/%d remaining]",
-                        idx, num_clients - attempt - 1, num_clients,
-                    )
+                    retry_after = _parse_retry_after(exc)
+                    _set_cooldown("gemini", idx, retry_after)
                     continue
 
-                # Non-quota error — skip straight to Ollama
+                # Non-quota error — skip straight to Groq
                 logger.error(
                     "IdentityAgent[Gemini]: non-quota error: %s. "
-                    "Falling through to Ollama tier.", exc,
+                    "Falling through to Groq tier.", exc,
                 )
                 return None
 
         logger.error(
-            "IdentityAgent[Gemini]: all %d key(s) exhausted. "
-            "Last error: %s. Trying Ollama tier.",
+            "IdentityAgent[Gemini]: all %d key(s) exhausted/cooling. "
+            "Last error: %s. Trying Groq tier.",
             num_clients, last_exc,
         )
         return None
@@ -247,7 +316,90 @@ class IdentityAgent:
         return self._parse_llm_response(raw)
 
     # ─────────────────────────────────────────────────────────────────────────
-    # Tier 2 — Ollama (deepseek-r1, 15 s hard timeout, non-blocking)
+    # Tier 2 — Groq (llama-4-scout, same keys as LinguisticAgent)
+    # ─────────────────────────────────────────────────────────────────────────
+
+    def _try_groq(
+        self, identity_data: dict[str, Any], message_text: str, start: float
+    ) -> dict[str, Any] | None:
+        """Try all Groq keys in round-robin, honouring per-key cooldowns.
+
+        Uses the same GROQ_API_KEYS and GROQ_MODEL already configured for
+        LinguisticAgent — zero additional setup required.
+
+        Returns None if all keys are quota-limited → falls through to Ollama.
+        """
+        num_clients = len(self._groq_clients)
+        last_exc: Exception | None = None
+
+        for attempt in range(num_clients):
+            with self._groq_lock:
+                idx    = self._groq_index
+                client = self._groq_clients[idx]
+                key    = self._groq_keys[idx]
+                self._groq_index = (self._groq_index + 1) % num_clients
+
+            # Skip keys that are still cooling down from a previous 429
+            if not _is_cooled_down("groq", idx):
+                logger.debug("IdentityAgent[Groq]: key %d still cooling down — skipping.", idx)
+                continue
+
+            masked = f"...{key[-6:]}" if len(key) > 6 else key
+            logger.info(
+                "IdentityAgent[Groq]: key index %d (%s), attempt %d/%d",
+                idx, masked, attempt + 1, num_clients,
+            )
+
+            try:
+                prompt = self._build_prompt(identity_data, message_text=message_text)
+                completion = client.chat.completions.create(
+                    messages=[
+                        {
+                            "role": "system",
+                            "content": (
+                                "You are an identity fraud analyst for freelance platforms. "
+                                "Respond ONLY with a valid JSON object — no markdown, no explanation."
+                            ),
+                        },
+                        {"role": "user", "content": prompt},
+                    ],
+                    model=GROQ_MODEL,
+                    response_format={"type": "json_object"},
+                    temperature=0.0,
+                    timeout=8.0,  # fast timeout; Ollama is the slow fallback
+                )
+                raw = completion.choices[0].message.content or "{}"
+                result = self._parse_llm_response(raw)
+                result["tier_used"] = "groq"
+                latency = time.perf_counter() - start
+                logger.info("IdentityAgent[Groq] latency: %.4fs (model: %s)", latency, GROQ_MODEL)
+                return result
+
+            except Exception as exc:
+                last_exc = exc
+                exc_str  = str(exc)
+
+                if "429" in exc_str or "rate_limit" in exc_str.lower() or "quota" in exc_str.lower():
+                    retry_after = _parse_retry_after(exc)
+                    _set_cooldown("groq", idx, retry_after)
+                    continue
+
+                # Non-quota error — fall through to Ollama
+                logger.error(
+                    "IdentityAgent[Groq]: non-quota error: %s. "
+                    "Falling through to Ollama tier.", exc,
+                )
+                return None
+
+        logger.error(
+            "IdentityAgent[Groq]: all %d key(s) exhausted/cooling. "
+            "Last error: %s. Trying Ollama tier.",
+            num_clients, last_exc,
+        )
+        return None
+
+    # ─────────────────────────────────────────────────────────────────────────
+    # Tier 3 — Ollama (deepseek-r1, 15 s hard timeout, non-blocking)
     # ─────────────────────────────────────────────────────────────────────────
 
     def _try_ollama(
@@ -258,18 +410,18 @@ class IdentityAgent:
     ) -> dict[str, Any] | None:
         """Call Ollama in a thread-pool worker with a configurable timeout.
 
-        Uses the resolved model from OllamaClient, but with a tiny max_tokens cap
+        Uses the resolved model from OllamaClient with a small max_tokens cap
         so it completes quickly and doesn't starve the main call.
         """
-        if not self.client or not self.client.is_available():
+        if not self.ollama_client or not self.ollama_client.is_available():
             logger.warning("IdentityAgent[Ollama]: Ollama not available or not installed locally.")
             return None
 
-        logger.info("IdentityAgent[Ollama]: attempting identity analysis via %s…", self.client.model)
+        logger.info("IdentityAgent[Ollama]: attempting identity analysis via %s…", self.ollama_client.model)
 
         def _call() -> dict[str, Any]:
             prompt = self._build_prompt(identity_data, message_text=message_text)
-            raw = self.client.generate(
+            raw = self.ollama_client.generate(
                 prompt=prompt,
                 temperature=0.0,
                 max_tokens=OLLAMA_IDENTITY_MAX_TOKENS,
@@ -301,7 +453,7 @@ class IdentityAgent:
             return None
 
     # ─────────────────────────────────────────────────────────────────────────
-    # Tier 3 — Enriched rule-based
+    # Tier 4 — Enriched rule-based (always available)
     # ─────────────────────────────────────────────────────────────────────────
 
     def _enriched_rules(
@@ -312,8 +464,8 @@ class IdentityAgent:
     ) -> dict[str, Any]:
         """Rule-based fallback using BOTH profile metadata AND message content.
 
-        Significantly stronger than the old mock_verify because it cross-checks
-        the message for scam signals that correlate with weak profiles.
+        Significantly stronger than a bare mock because it cross-checks the
+        message for scam signals that correlate with weak profiles.
         """
         identity_risk = 0.0
         anomalies: list[str] = []
@@ -354,10 +506,7 @@ class IdentityAgent:
             identity_risk = min(100.0, identity_risk + 20.0)
             anomalies.append("Compound risk: new account, no reviews, no verification")
 
-        # ── Message content signals (new in enriched tier) ────────────────────
-        # These raise identity risk when the message content matches patterns
-        # that are highly correlated with fake / scam accounts.
-
+        # ── Message content signals ───────────────────────────────────────────
         _TOO_GOOD = [
             "extremely high pay", "very high pay", "big budget", "huge project",
             "highest pay", "willing to pay more", "pay you extra",
@@ -446,17 +595,21 @@ class IdentityAgent:
             "Respond with ONLY a valid JSON object — no markdown, no explanation:\n"
             "{\n"
             '  "identity_risk": <integer 0-100>,\n'
-            '  "anomalies": [<concise strings for each red flag>],\n'
+            '  "anomalies": [<concise strings for each red flag found>],\n'
             '  "confidence": <float 0.0-1.0>\n'
             "}\n\n"
             "Scoring: 0–29 legitimate, 30–59 moderate risk, 60–79 high risk, 80–100 extremely suspicious.\n"
             "Key signals: account_age_days < 7 → high risk; reviews == 0 AND age < 30 → medium risk; "
             "unverified + new + no reviews → compound penalty; "
-            "message contains payment lures or off-platform requests → raise risk."
+            "message contains payment lures or off-platform requests → raise risk significantly.\n"
+            "Be specific in your anomalies — describe exactly what signal triggered the flag."
         )
 
     def _parse_llm_response(self, raw: str) -> dict[str, Any]:
         """Robustly extract JSON from an LLM response, stripping markdown fences."""
+        # Strip <think>...</think> blocks from DeepSeek-R1 responses
+        raw = re.sub(r"<think>.*?</think>", "", raw, flags=re.DOTALL).strip()
+
         # Strip markdown fences (```json ... ```)
         if raw.startswith("```"):
             raw = re.sub(r"^```[a-z]*\n?", "", raw, flags=re.MULTILINE)
