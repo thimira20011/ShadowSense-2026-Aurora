@@ -171,7 +171,7 @@ infisical run --env=dev --command ".venv\Scripts\pytest.exe tests/ -v"
 ---
 ## Demo Video
 
-[![ShadowSense Demo Video](https://img.shields.io/badge/Demo%20Video-Play-red?style=for-the-badge&logo=youtube)](https://github.com/thimira20011/ShadowSense-2026-Aurora)
+[![ShadowSense Demo Video](https://img.shields.io/badge/Demo%20Video-Play-red?style=for-the-badge&logo=youtube)](https://www.youtube.com/watch?v=Rm4YYH6gNFw)
 
 *Placeholder for the upcoming 3-minute demo video demonstrating real-time scam detection and intervention on Fiverr.*
 ## Contributing
